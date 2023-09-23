@@ -75,7 +75,6 @@ def sample(model: GPT, device: str, decode):
     max_new_tokens = 100
     context = torch.zeros((bs, 1), dtype=torch.long, device=device)
     return [decode(model.generate(context, max_new_tokens=max_new_tokens)[i].tolist()) for i in range(bs)]
-    # open('more.txt', 'w').write(decode(m.generate(context, max_new_tokens=10000)[0].tolist())
 
 
 def make_wandb_table(texts):
@@ -144,6 +143,7 @@ def train(data_file: str, device: str, train_args: TrainArgs):
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--eval_interval', type=int, required=True)
+    parser.add_argument('--max_iters', type=int, default=5000)
     parser.add_argument('--wandb_project',
                         type=str, default='char-gpt')
     parser.add_argument('--data_file',
@@ -156,7 +156,8 @@ def main():
     args = get_args()
     data_file = args.data_file
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    train_args = TrainArgs(eval_interval=args.eval_interval)
+    train_args = TrainArgs(
+        eval_interval=args.eval_interval, max_iters=args.max_iters)
     wandb.init(project=args.wandb_project, config=asdict(train_args))
     train(data_file, device, train_args)
 
