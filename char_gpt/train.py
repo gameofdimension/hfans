@@ -1,7 +1,9 @@
 import argparse
+from dataclasses import dataclass, asdict
 
 import torch
-from dataclasses import dataclass
+import wandb
+
 from char_gpt.model import GPTConfig, GPT
 
 
@@ -70,8 +72,9 @@ def estimate_loss(model, get_batch, eval_iters: int):
 def sample(model: GPT, device: str, decode):
     # generate from the model
     bs = 3
+    max_new_tokens = 100
     context = torch.zeros((bs, 1), dtype=torch.long, device=device)
-    return [decode(model.generate(context, max_new_tokens=500)[i].tolist()) for i in range(bs)]
+    return [decode(model.generate(context, max_new_tokens=max_new_tokens)[i].tolist()) for i in range(bs)]
     # open('more.txt', 'w').write(decode(m.generate(context, max_new_tokens=10000)[0].tolist())
 
 
@@ -103,6 +106,12 @@ def train(data_file: str, device: str, train_args: TrainArgs):
             print(f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
             texts = sample(model, device, decode)
             print('\n'.join(texts))
+            wandb.log({
+                "iter": iter,
+                "train/loss": losses['train'],
+                "val/loss": losses['val'],
+                "samples": texts,
+            })
 
         # sample a batch of data
         xb, yb = get_batch('train')
@@ -117,6 +126,8 @@ def train(data_file: str, device: str, train_args: TrainArgs):
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--eval_interval', type=int, required=True)
+    parser.add_argument('--wandb_project',
+                        type=str, default='char-gpt')
     parser.add_argument('--data_file',
                         type=str, help='data filename')
     args = parser.parse_args()
@@ -128,6 +139,7 @@ def main():
     data_file = args.data_file
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     train_args = TrainArgs(eval_interval=args.eval_interval)
+    wandb.init(project=args.wandb_project, config=asdict(train_args))
     train(data_file, device, train_args)
 
 
