@@ -55,7 +55,7 @@ def load_data(name: str, device: str, block_size: int, batch_size: int):
 
 
 @torch.no_grad()
-def estimate_loss(model, get_batch, eval_iters: int):
+def estimate_loss(model: GPT, get_batch, eval_iters: int):
     out = {}
     model.eval()
     for split in ['train', 'val']:
@@ -112,12 +112,13 @@ def train(data_file: str, device: str, train_args: TrainArgs):
                 model=model, get_batch=get_batch, eval_iters=train_args.eval_iters)
             print(f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
             texts = sample(model, device, decode)
-            wandb.log({
-                "iter": iter,
-                "train/loss": losses['train'],
-                "val/loss": losses['val'],
-                "samples": make_wandb_table(texts),
-            })
+            wandb.log(
+                step=iter,
+                data={
+                    "train/loss": losses['train'],
+                    "val/loss": losses['val'],
+                    "samples": make_wandb_table(texts),
+                })
 
         # sample a batch of data
         xb, yb = get_batch('train')
@@ -132,12 +133,13 @@ def train(data_file: str, device: str, train_args: TrainArgs):
         model=model, get_batch=get_batch, eval_iters=train_args.eval_iters)
     print(f"step {train_args.max_iters}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
     texts = sample(model, device, decode)
-    wandb.log({
-        "iter": train_args.max_iters,
-        "train/loss": losses['train'],
-        "val/loss": losses['val'],
-        "samples": make_wandb_table(texts),
-    })
+    wandb.log(
+        step=train_args.max_iters,
+        data={
+            "train/loss": losses['train'],
+            "val/loss": losses['val'],
+            "samples": make_wandb_table(texts),
+        })
 
 
 def get_args():
