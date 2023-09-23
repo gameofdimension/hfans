@@ -114,6 +114,7 @@ def train(data_file: str, device: str, train_args: TrainArgs):
             texts = sample(model, device, decode)
             wandb.log(
                 step=iter,
+                commit=True,
                 data={
                     "train/loss": losses['train'],
                     "val/loss": losses['val'],
@@ -135,6 +136,7 @@ def train(data_file: str, device: str, train_args: TrainArgs):
     texts = sample(model, device, decode)
     wandb.log(
         step=train_args.max_iters,
+        commit=True,
         data={
             "train/loss": losses['train'],
             "val/loss": losses['val'],
