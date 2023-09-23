@@ -105,7 +105,7 @@ def train(data_file: str, device: str, train_args: TrainArgs):
                 model=model, get_batch=get_batch, eval_iters=train_args.eval_iters)
             print(f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
             texts = sample(model, device, decode)
-            print('\n'.join(texts))
+            # print('\n'.join(texts))
             wandb.log({
                 "iter": iter,
                 "train/loss": losses['train'],
