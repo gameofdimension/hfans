@@ -146,7 +146,8 @@ def train(data_file: str, device: str, train_args: TrainArgs):
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--eval_interval', type=int, required=True)
+    parser.add_argument('--eval_interval', type=int, default=50)
+    parser.add_argument('--batch_size', type=int, required=True)
     parser.add_argument('--max_iters', type=int, default=5000)
     parser.add_argument('--wandb_project',
                         type=str, default='char-gpt')
@@ -161,7 +162,10 @@ def main():
     data_file = args.data_file
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     train_args = TrainArgs(
-        eval_interval=args.eval_interval, max_iters=args.max_iters)
+        batch_size=args.batch_size,
+        eval_interval=args.eval_interval,
+        max_iters=args.max_iters
+    )
     wandb.init(project=args.wandb_project, config=asdict(train_args))
     train(data_file, device, train_args)
 
