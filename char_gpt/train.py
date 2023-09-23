@@ -78,6 +78,14 @@ def sample(model: GPT, device: str, decode):
     # open('more.txt', 'w').write(decode(m.generate(context, max_new_tokens=10000)[0].tolist())
 
 
+def make_wandb_table(texts):
+    columns = ["Text"]
+    # Method 1
+    data = [[text] for text in texts]
+    table = wandb.Table(data=data, columns=columns)
+    return table
+
+
 def train(data_file: str, device: str, train_args: TrainArgs):
     get_batch, _, decode, vocab_size = load_data(
         data_file, device, train_args.block_size, train_args.batch_size)
@@ -105,12 +113,11 @@ def train(data_file: str, device: str, train_args: TrainArgs):
                 model=model, get_batch=get_batch, eval_iters=train_args.eval_iters)
             print(f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
             texts = sample(model, device, decode)
-            # print('\n'.join(texts))
             wandb.log({
                 "iter": iter,
                 "train/loss": losses['train'],
                 "val/loss": losses['val'],
-                "samples": texts,
+                "samples": make_wandb_table(texts),
             })
 
         # sample a batch of data
@@ -121,6 +128,17 @@ def train(data_file: str, device: str, train_args: TrainArgs):
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
         optimizer.step()
+
+    losses = estimate_loss(
+        model=model, get_batch=get_batch, eval_iters=train_args.eval_iters)
+    print(f"step {train_args.max_iters}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+    texts = sample(model, device, decode)
+    wandb.log({
+        "iter": train_args.max_iters,
+        "train/loss": losses['train'],
+        "val/loss": losses['val'],
+        "samples": make_wandb_table(texts),
+    })
 
 
 def get_args():
