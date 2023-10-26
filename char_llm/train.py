@@ -4,7 +4,7 @@ from dataclasses import dataclass, asdict
 import torch
 import wandb
 
-from char_gpt.model import GPTConfig, GPT
+from char_llm.model_gpt import GPTConfig, GPT
 
 
 @dataclass
