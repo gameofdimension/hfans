@@ -329,6 +329,8 @@ class CausalRwkvModel(nn.Module):
             with torch.no_grad():
                 module.key_mixer.mix_weight.data = torch.pow(time_weight, ratio_1_to_almost0)
                 module.receptance_mixer.mix_weight.data = torch.pow(time_weight, ratio_1_to_almost0)
+        elif isinstance(module, nn.Embedding):
+            nn.init.uniform_(module.weight, -1e-4, 1e-4)
 
     @torch.no_grad()
     def generate(self, idx, max_new_tokens, temperature=1.0, top_k=None):
