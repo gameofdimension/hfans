@@ -7,7 +7,10 @@ def sample(model, device: str, decode):
     bs = 3
     max_new_tokens = 100
     context = torch.zeros((bs, 1), dtype=torch.long, device=device)
-    return [decode(model.generate(context, max_new_tokens=max_new_tokens)[i].tolist()) for i in range(bs)]
+    model.eval()
+    res = [decode(model.generate(context, max_new_tokens=max_new_tokens)[i].tolist()) for i in range(bs)]
+    model.train()
+    return res
 
 
 def make_wandb_table(texts):
