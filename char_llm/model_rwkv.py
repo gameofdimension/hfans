@@ -69,14 +69,15 @@ class Memory(nn.Module):
         self.time_first = nn.Parameter(torch.empty(config.attention_hidden_size))
 
     def forward(self, key: torch.Tensor, value: torch.Tensor):
+        device = key.device
         batch_size, seq_length, hidden_size = key.size()
         u = self.time_first
         w = -torch.exp(self.time_decay)
 
         lst = []
-        a = torch.zeros(batch_size, hidden_size)
-        b = torch.zeros_like(a)
-        exponent = torch.full_like(a, -float('inf'))
+        a = torch.zeros(batch_size, hidden_size).to(device)
+        b = torch.zeros_like(a).to(device)
+        exponent = torch.full_like(a, -float('inf')).to(device)
         for t in range(seq_length):
             kt = key[:, t]
 
