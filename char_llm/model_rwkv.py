@@ -250,12 +250,13 @@ class CausalRwkvModel(nn.Module):
         super().__init__()
         self.rwkv = Model(config)
         self.head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
+        self.config = config
 
         # init all weights
         self.apply(self._init_weights)
 
     def forward(self, input_ids: torch.LongTensor, labels: Optional[torch.LongTensor] = None):
-        self.rwkv.to(input_ids.device)
+        # self.rwkv.to(input_ids.device)
         hidden_states = self.rwkv(input_ids)
         logits = self.head(hidden_states)
 
