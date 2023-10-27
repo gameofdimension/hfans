@@ -1,7 +1,10 @@
+import math
 from dataclasses import dataclass
+from typing import Optional
 
 import torch
 from torch import nn
+from torch.nn import CrossEntropyLoss
 from transformers import AutoModelForCausalLM
 
 
@@ -33,7 +36,7 @@ class Mixer(nn.Module):
 
 
 class FeedForward(nn.Module):
-    def __init__(self, config: RwkvConfig):
+    def __init__(self, config: RwkvConfig, layer_id):
         super().__init__()
         self.time_shift = nn.ZeroPad2d((0, 0, 1, -1))
 
@@ -43,6 +46,9 @@ class FeedForward(nn.Module):
 
         self.key_mixer = Mixer(config.hidden_size)
         self.receptance_mixer = Mixer(config.hidden_size)
+
+        self.config = config
+        self.layer_id = layer_id
 
     def forward(self, hidden_states: torch.Tensor):
         current = hidden_states
@@ -95,7 +101,7 @@ class Memory(nn.Module):
 
 
 class Attention(nn.Module):
-    def __init__(self, config: RwkvConfig):
+    def __init__(self, config: RwkvConfig, layer_id):
         super().__init__()
         attention_hidden_size = config.attention_hidden_size
         hidden_size = config.hidden_size
@@ -109,6 +115,9 @@ class Attention(nn.Module):
         self.value = nn.Linear(hidden_size, attention_hidden_size, bias=False)
         self.receptance = nn.Linear(hidden_size, attention_hidden_size, bias=False)
         self.output = nn.Linear(attention_hidden_size, hidden_size, bias=False)
+
+        self.layer_id = layer_id
+        self.config = config
 
         self.memory = Memory(config)
 
@@ -128,12 +137,12 @@ class Attention(nn.Module):
 
 
 class Block(nn.Module):
-    def __init__(self, config: RwkvConfig):
+    def __init__(self, config: RwkvConfig, layer_id):
         super().__init__()
         self.ln1 = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_epsilon)
-        self.attention = Attention(config)
+        self.attention = Attention(config, layer_id)
         self.ln2 = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_epsilon)
-        self.ffn = FeedForward(config)
+        self.ffn = FeedForward(config, layer_id)
 
     def forward(self, hidden_states: torch.Tensor):
         attention = self.attention(self.ln1(hidden_states))
@@ -154,7 +163,7 @@ class Model(nn.Module):
         self.config = config
         self.layers_are_rescaled = False
         self.word_embedding_table = nn.Embedding(config.vocab_size, config.hidden_size)
-        self.layers = nn.ModuleList([Block(config) for _ in range(config.num_hidden_layers)])
+        self.layers = nn.ModuleList([Block(config, layer_id) for layer_id in range(config.num_hidden_layers)])
         self.pre_ln = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_epsilon)
         self.post_ln = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_epsilon)
 
@@ -169,15 +178,12 @@ class Model(nn.Module):
 
         hidden_states = self.word_embedding_table(input_ids)
         hidden_states = self.pre_ln(hidden_states)
-        layers_output = []
         for idx, layer in enumerate(self.layers):
             hidden_states = layer(hidden_states)
             if should_rescale(idx, self.config.rescale_every, self.layers_are_rescaled):
                 hidden_states = hidden_states / 2
-            layers_output.append(hidden_states.detach().clone())
         last = self.post_ln(hidden_states)
-        layers_output.append(last.detach().clone())
-        return last, layers_output
+        return last
 
     def _try_rescale_layers(self):
         # inference
@@ -253,3 +259,114 @@ def name_mapping(param: str):
         if 'receptance_mixer' in param:
             return prefix + ".feed_forward.time_mix_receptance"
         return prefix + f".feed_forward.{arr[-2]}.{arr[-1]}"
+
+
+class CausalRwkvModel(nn.Module):
+    def __init__(self, config: RwkvConfig):
+        super().__init__()
+        self.rwkv = Model(config)
+        self.head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
+
+        # init all weights
+        self.apply(self._init_weights)
+
+    def forward(self, input_ids: torch.LongTensor, labels: Optional[torch.LongTensor] = None):
+        hidden_states = self.rwkv(input_ids)
+        logits = self.head(hidden_states)
+
+        loss = None
+        if labels is not None:
+            # move labels to correct device to enable model parallelism
+            labels = labels.to(logits.device)
+            # Shift so that tokens < n predict n
+            shift_logits = logits[..., :-1, :].contiguous()
+            shift_labels = labels[..., 1:].contiguous()
+            # Flatten the tokens
+            loss_fct = CrossEntropyLoss()
+            loss = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
+        return logits, loss
+
+    # copy from hugging face rwkv implementation
+    def _init_weights(self, module):
+        """Initialize the weights."""
+        if isinstance(module, Attention):
+            layer_id = module.layer_id
+            num_hidden_layers = module.config.num_hidden_layers
+            hidden_size = module.config.hidden_size
+            attention_hidden_size = module.attention_hidden_size
+
+            ratio_0_to_1 = layer_id / (num_hidden_layers - 1)  # 0 to 1
+            ratio_1_to_almost0 = 1.0 - (layer_id / num_hidden_layers)  # 1 to ~0
+
+            time_weight = torch.tensor(
+                [i / hidden_size for i in range(hidden_size)],
+                dtype=module.key_mixer.mix_weight.dtype,
+                device=module.key_mixer.device,
+            )
+            time_weight = time_weight[None, None, :]
+
+            decay_speed = [
+                -5 + 8 * (h / (attention_hidden_size - 1)) ** (0.7 + 1.3 * ratio_0_to_1)
+                for h in range(attention_hidden_size)
+            ]
+            decay_speed = torch.tensor(decay_speed, dtype=module.memory.time_decay.dtype,
+                                       device=module.memory.time_decay.device)
+            zigzag = (
+                    torch.tensor(
+                        [(i + 1) % 3 - 1 for i in range(attention_hidden_size)],
+                        dtype=module.memory.time_first.dtype,
+                        device=module.memory.time_first.device,
+                    )
+                    * 0.5
+            )
+
+            with torch.no_grad():
+                module.memory.time_decay.data = decay_speed
+                module.memory.time_first.data = torch.ones_like(module.time_first * math.log(0.3) + zigzag)
+
+                module.key_mixer.mix_weight.data = torch.pow(time_weight, ratio_1_to_almost0)
+                module.value_mixer.mix_weight.data = torch.pow(time_weight, ratio_1_to_almost0) + 0.3 * ratio_0_to_1
+                module.receptance_mixer.mix_weight.data = torch.pow(time_weight, 0.5 * ratio_1_to_almost0)
+        elif isinstance(module, FeedForward):
+            layer_id = module.layer_id
+            num_hidden_layers = module.config.num_hidden_layers
+            hidden_size = module.config.hidden_size
+
+            ratio_1_to_almost0 = 1.0 - (layer_id / num_hidden_layers)  # 1 to ~0
+
+            time_weight = torch.tensor(
+                [i / hidden_size for i in range(hidden_size)],
+                dtype=module.key_mixer.mix_weight.dtype,
+                device=module.key_mixer.mix_weight.device,
+            )
+            time_weight = time_weight[None, None, :]
+
+            with torch.no_grad():
+                module.key_mixer.mix_weight.data = torch.pow(time_weight, ratio_1_to_almost0)
+                module.receptance_mixer.mix_weight.data = torch.pow(time_weight, ratio_1_to_almost0)
+
+    @torch.no_grad()
+    def generate(self, idx, max_new_tokens, temperature=1.0, top_k=None):
+        """
+        Take a conditioning sequence of indices idx (LongTensor of shape (b,t)) and complete
+        the sequence max_new_tokens times, feeding the predictions back into the model each time.
+        Most likely you'll want to make sure to be in model.eval() mode of operation for this.
+        """
+        for _ in range(max_new_tokens):
+            # if the sequence context is growing too long we must crop it at block_size
+            idx_cond = idx if idx.size(1) <= self.config.block_size else idx[:, -self.config.block_size:]
+            # forward the model to get the logits for the index in the sequence
+            logits, _ = self(idx_cond)
+            # pluck the logits at the final step and scale by desired temperature
+            logits = logits[:, -1, :] / temperature
+            # optionally crop the logits to only the top k options
+            if top_k is not None:
+                v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
+                logits[logits < v[:, [-1]]] = -float('Inf')
+            # apply softmax to convert logits to (normalized) probabilities
+            probs = torch.nn.functional.softmax(logits, dim=-1)
+            # sample from the distribution
+            idx_next = torch.multinomial(probs, num_samples=1)
+            # append sampled index to the running sequence and continue
+            idx = torch.cat((idx, idx_next), dim=1)
+        return idx

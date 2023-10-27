@@ -4,7 +4,12 @@ from dataclasses import dataclass, asdict
 import torch
 import wandb
 
+from char_llm.data import load_data
 from char_llm.model_gpt import GPTConfig, GPT
+from char_llm.model_rwkv import RwkvConfig, CausalRwkvModel
+from char_llm.util import sample, make_wandb_table
+
+from loguru import logger
 
 
 @dataclass
@@ -22,40 +27,15 @@ class TrainArgs:
     dropout: int = 0.2
 
 
-def load_data(name: str, device: str, block_size: int, batch_size: int):
-    with open(name, 'r', encoding='utf-8') as f:
-        text = f.read()
-
-    # here are all the unique characters that occur in this text
-    chars = sorted(list(set(text)))
-    vocab_size = len(chars)
-    # create a mapping from characters to integers
-    stoi = {ch: i for i, ch in enumerate(chars)}
-    itos = {i: ch for i, ch in enumerate(chars)}
-    encode = lambda s: [stoi[c] for c in s]  # encoder: take a string, output a list of integers
-    decode = lambda l: ''.join([itos[i] for i in l])  # decoder: take a list of integers, output a string
-
-    # Train and test splits
-    data = torch.tensor(encode(text), dtype=torch.long)
-    n = int(0.9 * len(data))  # first 90% will be train, rest val
-    train_data = data[:n]
-    val_data = data[n:]
-
-    # data loading
-    def get_batch(split):
-        # generate a small batch of data of inputs x and targets y
-        data = train_data if split == 'train' else val_data
-        ix = torch.randint(len(data) - block_size, (batch_size,))
-        x = torch.stack([data[i:i + block_size] for i in ix])
-        y = torch.stack([data[i + 1:i + block_size + 1] for i in ix])
-        x, y = x.to(device), y.to(device)
-        return x, y
-
-    return get_batch, encode, decode, vocab_size
-
-
 @torch.no_grad()
-def estimate_loss(model: GPT, get_batch, eval_iters: int):
+def estimate_loss(model, get_batch, eval_iters: int):
+    """
+
+    :param model: gpt or rwkv model
+    :param get_batch:
+    :param eval_iters:
+    :return:
+    """
     out = {}
     model.eval()
     for split in ['train', 'val']:
@@ -69,37 +49,35 @@ def estimate_loss(model: GPT, get_batch, eval_iters: int):
     return out
 
 
-def sample(model: GPT, device: str, decode):
-    # generate from the model
-    bs = 3
-    max_new_tokens = 100
-    context = torch.zeros((bs, 1), dtype=torch.long, device=device)
-    return [decode(model.generate(context, max_new_tokens=max_new_tokens)[i].tolist()) for i in range(bs)]
+def build_model(train_args: TrainArgs, model_type: str, device, vocab_size):
+    if model_type == 'gpt':
+        config = GPTConfig(
+            block_size=train_args.block_size,
+            vocab_size=vocab_size,
+            n_layer=train_args.n_layer,
+            n_head=train_args.n_head,
+            n_embd=train_args.n_embd,
+            dropout=train_args.dropout,
+        )
+        return GPT(config).to(device)
+    config = RwkvConfig(
+        hidden_size=train_args.n_embd,
+        attention_hidden_size=train_args.n_embd,
+        intermediate_size=train_args.n_embd * 4,
+        context_length=train_args.block_size,
+        num_hidden_layers=train_args.n_layer,
+        vocab_size=vocab_size,
+    )
+    return CausalRwkvModel(config).to(device)
 
 
-def make_wandb_table(texts):
-    columns = ["Text"]
-    # Method 1
-    data = [[text] for text in texts]
-    table = wandb.Table(data=data, columns=columns)
-    return table
-
-
-def train(data_file: str, device: str, train_args: TrainArgs):
+def train(data_file: str, device: str, model_type: str, train_args: TrainArgs):
     get_batch, _, decode, vocab_size = load_data(
         data_file, device, train_args.block_size, train_args.batch_size)
 
-    config = GPTConfig(
-        block_size=train_args.block_size,
-        vocab_size=vocab_size,
-        n_layer=train_args.n_layer,
-        n_head=train_args.n_head,
-        n_embd=train_args.n_embd,
-        dropout=train_args.dropout,
-    )
-    model = GPT(config).to(device)
+    model = build_model(train_args, model_type, device, vocab_size)
     # print the number of parameters in the model
-    print(sum(p.numel() for p in model.parameters()) / 1e6, 'M parameters')
+    logger.info(f'{sum(p.numel() for p in model.parameters()) / 1e6} M parameters')
 
     # create a PyTorch optimizer
     optimizer = torch.optim.AdamW(model.parameters(), lr=train_args.learning_rate)
@@ -110,7 +88,7 @@ def train(data_file: str, device: str, train_args: TrainArgs):
         if iter % train_args.eval_interval == 0 or iter == train_args.max_iters - 1:
             losses = estimate_loss(
                 model=model, get_batch=get_batch, eval_iters=train_args.eval_iters)
-            print(f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+            logger.info(f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
             texts = sample(model, device, decode)
             wandb.log(
                 step=iter,
@@ -132,7 +110,7 @@ def train(data_file: str, device: str, train_args: TrainArgs):
 
     losses = estimate_loss(
         model=model, get_batch=get_batch, eval_iters=train_args.eval_iters)
-    print(f"step {train_args.max_iters}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+    logger.info(f"step {train_args.max_iters}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
     texts = sample(model, device, decode)
     wandb.log(
         step=train_args.max_iters,
@@ -149,10 +127,9 @@ def get_args():
     parser.add_argument('--eval_interval', type=int, default=50)
     parser.add_argument('--batch_size', type=int, required=True)
     parser.add_argument('--max_iters', type=int, default=5000)
-    parser.add_argument('--wandb_project',
-                        type=str, default='char-gpt')
-    parser.add_argument('--data_file',
-                        type=str, help='data filename')
+    parser.add_argument('--model_type', type=str, required=True, help='gpt or rwkv or llama')
+    parser.add_argument('--wandb_project', type=str, required=True)
+    parser.add_argument('--data_file', type=str, help='data filename')
     args = parser.parse_args()
     return args
 
@@ -167,7 +144,7 @@ def main():
         max_iters=args.max_iters
     )
     wandb.init(project=args.wandb_project, config=asdict(train_args))
-    train(data_file, device, train_args)
+    train(data_file, device, args.model_type, train_args)
 
 
 if __name__ == '__main__':
