@@ -256,7 +256,6 @@ class CausalRwkvModel(nn.Module):
         self.apply(self._init_weights)
 
     def forward(self, input_ids: torch.LongTensor, labels: Optional[torch.LongTensor] = None):
-        # self.rwkv.to(input_ids.device)
         hidden_states = self.rwkv(input_ids)
         logits = self.head(hidden_states)
 
@@ -340,7 +339,8 @@ class CausalRwkvModel(nn.Module):
         """
         for _ in range(max_new_tokens):
             # if the sequence context is growing too long we must crop it at block_size
-            idx_cond = idx if idx.size(1) <= self.config.block_size else idx[:, -self.config.block_size:]
+            block_size = self.config.context_length
+            idx_cond = idx if idx.size(1) <= block_size else idx[:, -block_size:]
             # forward the model to get the logits for the index in the sequence
             logits, _ = self(idx_cond)
             # pluck the logits at the final step and scale by desired temperature
