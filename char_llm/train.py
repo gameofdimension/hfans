@@ -96,8 +96,10 @@ def train(data_file: str, device: str, model_type: str, train_args: TrainArgs):
         if iter % train_args.eval_interval == 0 or iter == train_args.max_iters - 1:
             losses = estimate_loss(
                 model=model, get_batch=get_batch, eval_iters=train_args.eval_iters)
+            print(scheduler.get_last_lr())
             logger.info(
-                f"step {iter}: lr {scheduler.get_last_lr():.6f}, train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+                f"step {iter}: lr {scheduler.get_last_lr()}, "
+                f"train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
             texts = sample(model, device, decode)
             wandb.log(
                 step=iter,
