@@ -5,7 +5,6 @@ from typing import Optional
 import torch
 from torch import nn
 from torch.nn import CrossEntropyLoss
-from transformers import AutoModelForCausalLM
 
 
 @dataclass
@@ -206,22 +205,6 @@ class Model(nn.Module):
                 block.attention.output.weight.mul_(2 ** int(block_id // self.config.rescale_every))
                 block.ffn.value.weight.mul_(2 ** int(block_id // self.config.rescale_every))
         self.layers_are_rescaled = not self.layers_are_rescaled
-
-    def load_weights_from_hf(self, model_id):
-        """
-        :return:
-        """
-        # "RWKV/rwkv-4-169m-pile"
-        ref_model = AutoModelForCausalLM.from_pretrained(model_id)
-
-        state_dict = self.state_dict()
-        ref_state_dict = ref_model.state_dict()
-        for tup in self.named_parameters():
-            name = tup[0]
-            param = state_dict[name]
-            ref_name = name_mapping(name)
-            ref_param = ref_state_dict[ref_name]
-            param.data.copy_(ref_param)
 
 
 def name_mapping(param: str):
