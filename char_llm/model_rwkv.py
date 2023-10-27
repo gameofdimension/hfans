@@ -254,6 +254,7 @@ class CausalRwkvModel(nn.Module):
         self.apply(self._init_weights)
 
     def forward(self, input_ids: torch.LongTensor, labels: Optional[torch.LongTensor] = None):
+        self.rwkv.to(input_ids.device)
         hidden_states = self.rwkv(input_ids)
         logits = self.head(hidden_states)
 
