@@ -97,7 +97,7 @@ def train(data_file: str, device: str, model_type: str, train_args: TrainArgs):
             losses = estimate_loss(
                 model=model, get_batch=get_batch, eval_iters=train_args.eval_iters)
             logger.info(
-                f"step {iter}: lr {scheduler.get_lr():.6f}, train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+                f"step {iter}: lr {scheduler.get_last_lr():.6f}, train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
             texts = sample(model, device, decode)
             wandb.log(
                 step=iter,
