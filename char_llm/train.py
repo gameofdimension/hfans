@@ -3,6 +3,7 @@ from dataclasses import dataclass, asdict
 
 import torch
 import wandb
+from torch.optim.lr_scheduler import CosineAnnealingLR
 
 from char_llm.data import load_data
 from char_llm.model_gpt import GPTConfig, GPT
@@ -88,9 +89,9 @@ def train(data_file: str, device: str, model_type: str, train_args: TrainArgs):
 
     # create a PyTorch optimizer
     optimizer = torch.optim.AdamW(model.parameters(), lr=train_args.learning_rate)
+    scheduler = CosineAnnealingLR(optimizer, T_max=train_args.max_iters, verbose=True)
 
     for iter in range(train_args.max_iters):
-
         # every once in a while evaluate the loss on train and val sets
         if iter % train_args.eval_interval == 0 or iter == train_args.max_iters - 1:
             losses = estimate_loss(
@@ -113,7 +114,7 @@ def train(data_file: str, device: str, model_type: str, train_args: TrainArgs):
         logits, loss = model(xb, yb)
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
-        optimizer.step()
+        scheduler.step()
 
     losses = estimate_loss(
         model=model, get_batch=get_batch, eval_iters=train_args.eval_iters)
