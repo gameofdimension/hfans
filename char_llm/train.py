@@ -60,6 +60,8 @@ def build_model(train_args: TrainArgs, model_type: str, device, vocab_size):
             dropout=train_args.dropout,
         )
         return GPT(config).to(device)
+    train_args.n_embd = 192
+    train_args.n_layer = 3
     config = RwkvConfig(
         hidden_size=train_args.n_embd,
         attention_hidden_size=train_args.n_embd,
