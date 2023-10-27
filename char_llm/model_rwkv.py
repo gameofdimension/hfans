@@ -293,7 +293,7 @@ class CausalRwkvModel(nn.Module):
             layer_id = module.layer_id
             num_hidden_layers = module.config.num_hidden_layers
             hidden_size = module.config.hidden_size
-            attention_hidden_size = module.attention_hidden_size
+            attention_hidden_size = module.config.attention_hidden_size
 
             ratio_0_to_1 = layer_id / (num_hidden_layers - 1)  # 0 to 1
             ratio_1_to_almost0 = 1.0 - (layer_id / num_hidden_layers)  # 1 to ~0
@@ -301,7 +301,7 @@ class CausalRwkvModel(nn.Module):
             time_weight = torch.tensor(
                 [i / hidden_size for i in range(hidden_size)],
                 dtype=module.key_mixer.mix_weight.dtype,
-                device=module.key_mixer.device,
+                device=module.key_mixer.mix_weight.device,
             )
             time_weight = time_weight[None, None, :]
 
@@ -322,7 +322,7 @@ class CausalRwkvModel(nn.Module):
 
             with torch.no_grad():
                 module.memory.time_decay.data = decay_speed
-                module.memory.time_first.data = torch.ones_like(module.time_first * math.log(0.3) + zigzag)
+                module.memory.time_first.data = torch.ones_like(module.memory.time_first * math.log(0.3) + zigzag)
 
                 module.key_mixer.mix_weight.data = torch.pow(time_weight, ratio_1_to_almost0)
                 module.value_mixer.mix_weight.data = torch.pow(time_weight, ratio_1_to_almost0) + 0.3 * ratio_0_to_1
