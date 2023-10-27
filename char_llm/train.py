@@ -68,7 +68,7 @@ def build_model(train_args: TrainArgs, model_type: str, device, vocab_size):
     config = RwkvConfig(
         hidden_size=train_args.n_embd,
         attention_hidden_size=train_args.n_embd,
-        intermediate_size=train_args.n_embd * 4,
+        intermediate_size=train_args.n_embd * 2,
         context_length=train_args.block_size,
         num_hidden_layers=train_args.n_layer,
         vocab_size=vocab_size,
