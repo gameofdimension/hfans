@@ -59,6 +59,7 @@ def build_model(train_args: TrainArgs, model_type: str, device, vocab_size):
             n_embd=train_args.n_embd,
             dropout=train_args.dropout,
         )
+        logger.info(f"gpt config {asdict(config)}")
         return GPT(config).to(device)
     train_args.n_embd = 128
     train_args.n_layer = 2
@@ -72,6 +73,7 @@ def build_model(train_args: TrainArgs, model_type: str, device, vocab_size):
         num_hidden_layers=train_args.n_layer,
         vocab_size=vocab_size,
     )
+    logger.info(f"rwkv config {asdict(config)}")
     return CausalRwkvModel(config).to(device)
 
 
@@ -81,6 +83,7 @@ def train(data_file: str, device: str, model_type: str, train_args: TrainArgs):
 
     model = build_model(train_args, model_type, device, vocab_size)
     # print the number of parameters in the model
+    logger.info(f"training args {train_args}")
     logger.info(f'{sum(p.numel() for p in model.parameters()) / 1e6} M parameters')
 
     # create a PyTorch optimizer
