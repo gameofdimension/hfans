@@ -60,21 +60,21 @@ class MultiHeadAttention(nn.Module):
         head_num = self.config.num_attention_heads
         head_dim = self.config.hidden_size // head_num
 
-        all_q = all_q.view(bs, sl, head_num, head_dim)
-        all_k = all_k.view(bs, sl, head_num, head_dim)
-        all_v = all_v.view(bs, sl, head_num, head_dim)
+        all_q = all_q.reshape(bs, sl, head_num, head_dim).permute(1, 0, 2, 3)
+        all_k = all_k.reshape(bs, sl, head_num, head_dim).permute(1, 0, 2, 3)
+        all_v = all_v.reshape(bs, sl, head_num, head_dim).permute(1, 0, 2, 3)
 
         for s in range(sl):
             cos, sin = self.cos_sin_factory(s)
-            for b in range(bs):
-                all_q[b, s] = apply_rotary(all_q[b, s], cos, sin)
-                all_k[b, s] = apply_rotary(all_k[b, s], cos, sin)
+            all_q[s] = apply_rotary(all_q[s], cos, sin)
+            all_k[s] = apply_rotary(all_k[s], cos, sin)
 
-        all_q = torch.permute(all_q, (0, 2, 1, 3))
-        all_k = torch.permute(all_k, (0, 2, 1, 3))
-        all_v = torch.permute(all_v, (0, 2, 1, 3))
+        all_q = all_q.permute(1, 2, 0, 3)
+        all_k = all_k.permute(1, 2, 0, 3)
+        all_v = all_v.permute(1, 2, 0, 3)
 
         output = torch.nn.functional.scaled_dot_product_attention(all_q, all_k, all_v, is_causal=True)
+        output = output.permute(0, 2, 1, 3).reshape(bs, sl, hs)
         return self.o_proj(output)
 
 
@@ -152,18 +152,25 @@ class Model(nn.Module):
             hidden_states = layer(hidden_states)
         return self.rms(hidden_states)
 
-    # def load_weights_from_hf(self, model_id):
-    #     """
-    #     :return:
-    #     """
-    #     # model_id = 'felixdae/Llama-2-7b-hf'
-    #     ref_model = AutoModelForCausalLM.from_pretrained(model_id)
-    #
-    #     state_dict = self.state_dict()
-    #     ref_state_dict = ref_model.state_dict()
-    #     for tup in self.named_parameters():
-    #         name = tup[0]
-    #         param = state_dict[name]
-    #         ref_name = name_mapping(name)
-    #         ref_param = ref_state_dict[ref_name]
-    #         param.data.copy_(ref_param)
+    def load_weights_from_hf(self, model_id):
+        """
+        :return:
+        """
+        # model_id = 'felixdae/Llama-2-7b-hf'
+        ref_model = AutoModelForCausalLM.from_pretrained(model_id)
+
+        state_dict = self.state_dict()
+        ref_state_dict = ref_model.state_dict()
+        for tup in self.named_parameters():
+            name = tup[0]
+            param = state_dict[name]
+            ref_name = name_mapping(name)
+            ref_param = ref_state_dict[ref_name]
+            param.data.copy_(ref_param)
+
+
+if __name__ == '__main__':
+    config = LlamaConfig(num_hidden_layers=2)
+    mm = Model(config)
+
+    mm(torch.LongTensor([[2, 3, 4], [34, 56, 78]]))
