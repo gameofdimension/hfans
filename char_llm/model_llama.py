@@ -148,9 +148,11 @@ class Model(nn.Module):
         # [batch size, seq length]
         assert input_ids.dim() == 2
         hidden_states = self.word_embedding_table(input_ids)
+        layers_output = [hidden_states.detach()]
         for layer in self.layers:
             hidden_states = layer(hidden_states)
-        return self.rms(hidden_states)
+            layers_output.append(hidden_states.detach())
+        return self.rms(hidden_states), layers_output
 
     def load_weights_from_hf(self, model_id):
         """
@@ -169,8 +171,24 @@ class Model(nn.Module):
             param.data.copy_(ref_param)
 
 
-if __name__ == '__main__':
-    config = LlamaConfig(num_hidden_layers=2)
-    mm = Model(config)
+def test_modeling():
+    ref_model_id = "felixdae/Llama-2-7b-hf"
+    ref_model = AutoModelForCausalLM.from_pretrained(ref_model_id)
 
-    mm(torch.LongTensor([[2, 3, 4], [34, 56, 78]]))
+    config = LlamaConfig(num_hidden_layers=2)
+    model = Model(config)
+    model.load_weights_from_hf(ref_model_id)
+
+    input_ids = torch.LongTensor([[42, 2, 23], [5, 6, 9]])
+    out1 = ref_model(input_ids, output_hidden_states=True)
+    out2, layer_output = model(input_ids)
+
+    print(out1.hidden_states[-1].size(), out2.size())
+    delta = torch.abs(torch.max(out1.hidden_states[-1] - out2))
+    assert delta < 1e-3, f"fail at final output, delta {delta}"
+
+    for i in range(config.num_hidden_layers):
+        t1 = out1.hidden_states[i]
+        t2 = layer_output[i]
+        delta = torch.abs(torch.max(t2 - t1))
+        assert delta < 1e-3, f"fail at layer {i}, delta {delta}"
