@@ -183,12 +183,11 @@ def test_modeling():
     out1 = ref_model(input_ids, output_hidden_states=True)
     out2, layer_output = model(input_ids)
 
-    print(out1.hidden_states[-1].size(), out2.size())
     delta = torch.abs(torch.max(out1.hidden_states[-1] - out2))
-    assert delta < 1e-3, f"fail at final output, delta {delta}"
+    assert delta < 1e-4, f"fail at final output, delta {delta}"
 
     for i in range(config.num_hidden_layers):
         t1 = out1.hidden_states[i]
         t2 = layer_output[i]
         delta = torch.abs(torch.max(t2 - t1))
-        assert delta < 1e-3, f"fail at layer {i}, delta {delta}"
+        assert delta < 1e-4, f"fail at layer {i}, delta {delta}"
