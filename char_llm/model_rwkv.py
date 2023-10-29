@@ -263,12 +263,8 @@ class CausalRwkvModel(nn.Module):
         if labels is not None:
             # move labels to correct device to enable model parallelism
             labels = labels.to(logits.device)
-            # Shift so that tokens < n predict n
-            shift_logits = logits[..., :-1, :].contiguous()
-            shift_labels = labels[..., 1:].contiguous()
-            # Flatten the tokens
             loss_fct = CrossEntropyLoss()
-            loss = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
+            loss = loss_fct(logits.view(-1, logits.size(-1)), labels.view(-1))
         return logits, loss
 
     # copy from hugging face rwkv implementation

@@ -64,9 +64,6 @@ def build_model(train_args: TrainArgs, model_type: str, device, vocab_size):
         return GPT(config).to(device)
     if model_type == 'rwkv':
         train_args.n_embd = 128
-        train_args.n_layer = 2
-        train_args.learning_rate = 1e-3
-        train_args.block_size = 64
         config = RwkvConfig(
             hidden_size=train_args.n_embd,
             attention_hidden_size=train_args.n_embd,
