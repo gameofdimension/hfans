@@ -67,10 +67,9 @@ class MultiHeadAttention(nn.Module):
         all_k = all_k.reshape(bs, sl, head_num, head_dim).permute(1, 0, 2, 3)
         all_v = all_v.reshape(bs, sl, head_num, head_dim).permute(1, 0, 2, 3)
 
-        for s in range(sl):
-            cos, sin = self.cos_sin_factory(s, hidden_states.device)
-            all_q[s] = apply_rotary(all_q[s], cos, sin)
-            all_k[s] = apply_rotary(all_k[s], cos, sin)
+        cos, sin = self.cos_sin_factory(hidden_states.device)
+        all_q = apply_rotary(all_q, cos[:sl], sin[:sl])
+        all_k = apply_rotary(all_k, cos[:sl], sin[:sl])
 
         all_q = all_q.permute(1, 2, 0, 3)
         all_k = all_k.permute(1, 2, 0, 3)

@@ -30,18 +30,19 @@ def precompute_cos_sin(n: int, d: int):
             sin[i, j] = -torch.sin(i * theta)
             sin[i, j + d // 2] = torch.sin(i * theta)
 
-    def get_cos_sin(pos: int, device):
-        return cos[pos].to(device), sin[pos].to(device)
+    def get_cos_sin(device):
+        return cos.to(device), sin.to(device)
 
     return get_cos_sin
 
 
 def apply_rotary(vector: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor):
-    assert vector.dim() == 3
-    assert cos.dim() == sin.dim() == 1
+    assert vector.dim() == 4
+    assert cos.dim() == sin.dim() == 2
     assert cos.size(-1) == sin.size(-1) == vector.size(-1)
-    cos = cos.view(1, 1, -1)
-    sin = sin.view(1, 1, -1)
-    bs, nh, d = vector.size()
-    tmp = torch.cat([vector[:, :, d // 2:], vector[:, :, :d // 2]], dim=-1)
+    assert cos.size(0) == sin.size(0) == vector.size(0)
+    sl, bs, nh, d = vector.size()
+    cos = cos.view(sl, 1, 1, -1)
+    sin = sin.view(sl, 1, 1, -1)
+    tmp = torch.cat([vector[..., d // 2:], vector[..., :d // 2]], dim=-1)
     return vector * cos + tmp * sin
