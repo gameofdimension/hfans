@@ -197,6 +197,7 @@ class CausalLlamaModel(nn.Module):
         loss = None
         if labels is not None:
             # move labels to correct device to enable model parallelism
+            assert input_ids[:, 1:] == labels[:, :-1], "labels error"
             labels = labels.to(logits.device)
             loss_fct = CrossEntropyLoss()
             loss = loss_fct(logits.view(-1, logits.size(-1)), labels.view(-1))
