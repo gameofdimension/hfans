@@ -7,6 +7,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 
 from char_llm.data import load_data
 from char_llm.model_gpt import GPTConfig, GPT
+from char_llm.model_llama import LlamaConfig, CausalLlamaModel
 from char_llm.model_rwkv import RwkvConfig, CausalRwkvModel
 from char_llm.util import sample, make_wandb_table
 
@@ -62,20 +63,31 @@ def build_model(train_args: TrainArgs, model_type: str, device, vocab_size):
         )
         logger.info(f"gpt config {asdict(config)}")
         return GPT(config).to(device)
-    train_args.n_embd = 128
-    train_args.n_layer = 2
-    train_args.learning_rate = 1e-3
-    train_args.block_size = 64
-    config = RwkvConfig(
-        hidden_size=train_args.n_embd,
-        attention_hidden_size=train_args.n_embd,
-        intermediate_size=train_args.n_embd * 2,
-        context_length=train_args.block_size,
-        num_hidden_layers=train_args.n_layer,
+    if model_type == 'rwkv':
+        train_args.n_embd = 128
+        train_args.n_layer = 2
+        train_args.learning_rate = 1e-3
+        train_args.block_size = 64
+        config = RwkvConfig(
+            hidden_size=train_args.n_embd,
+            attention_hidden_size=train_args.n_embd,
+            intermediate_size=train_args.n_embd * 2,
+            context_length=train_args.block_size,
+            num_hidden_layers=train_args.n_layer,
+            vocab_size=vocab_size,
+        )
+        logger.info(f"rwkv config {asdict(config)}")
+        return CausalRwkvModel(config).to(device)
+    config = LlamaConfig(
+        max_context_length=train_args.block_size,
         vocab_size=vocab_size,
+        num_hidden_layers=train_args.n_layer,
+        num_attention_heads=train_args.n_head,
+        hidden_size=train_args.n_embd,
+        intermediate_size=int(2.6875 * train_args.n_embd)
     )
-    logger.info(f"rwkv config {asdict(config)}")
-    return CausalRwkvModel(config).to(device)
+    logger.info(f"llama config {asdict(config)}")
+    return CausalLlamaModel(config).to(device)
 
 
 def train(data_file: str, device: str, model_type: str, train_args: TrainArgs):
