@@ -78,18 +78,18 @@ def build_model(train_args: TrainArgs, model_type: str, device, vocab_size):
         )
         logger.info(f"rwkv config {asdict(config)}")
         return CausalRwkvModel(config).to(device)
-
-    train_args.n_embd = 144
-    config = LlamaConfig(
-        max_context_length=train_args.block_size,
-        vocab_size=vocab_size,
-        num_hidden_layers=train_args.n_layer,
-        num_attention_heads=train_args.n_head,
-        hidden_size=train_args.n_embd,
-        intermediate_size=int(2.6875 * train_args.n_embd)
-    )
-    logger.info(f"llama config {asdict(config)}")
-    return CausalLlamaModel(config).to(device)
+    if model_type == 'llama':
+        config = LlamaConfig(
+            max_context_length=train_args.block_size,
+            vocab_size=vocab_size,
+            num_hidden_layers=train_args.n_layer,
+            num_attention_heads=train_args.n_head,
+            hidden_size=train_args.n_embd,
+            intermediate_size=int(2.6875 * train_args.n_embd)
+        )
+        logger.info(f"llama config {asdict(config)}")
+        return CausalLlamaModel(config).to(device)
+    assert False, f"unknown model type {model_type}"
 
 
 def train(data_file: str, device: str, model_type: str, train_args: TrainArgs):
