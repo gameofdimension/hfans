@@ -78,6 +78,8 @@ def build_model(train_args: TrainArgs, model_type: str, device, vocab_size):
         )
         logger.info(f"rwkv config {asdict(config)}")
         return CausalRwkvModel(config).to(device)
+
+    train_args.n_embd = 144
     config = LlamaConfig(
         max_context_length=train_args.block_size,
         vocab_size=vocab_size,
