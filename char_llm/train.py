@@ -151,6 +151,7 @@ def get_args():
     parser.add_argument('--max_iters', type=int, default=5000)
     parser.add_argument('--model_type', type=str, required=True, help='gpt or rwkv or llama')
     parser.add_argument('--wandb_project', type=str, required=True)
+    parser.add_argument('--lr', type=float, default=3e-4, help='learning rate')
     parser.add_argument('--data_file', type=str, help='data filename')
     args = parser.parse_args()
     return args
@@ -163,7 +164,8 @@ def main():
     train_args = TrainArgs(
         batch_size=args.batch_size,
         eval_interval=args.eval_interval,
-        max_iters=args.max_iters
+        max_iters=args.max_iters,
+        learning_rate=args.lr,
     )
     wandb.init(project=args.wandb_project, config=asdict(train_args))
     train(data_file, device, args.model_type, train_args)
