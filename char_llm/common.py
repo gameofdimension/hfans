@@ -30,8 +30,8 @@ def precompute_cos_sin(n: int, d: int):
             sin[i, j] = -torch.sin(i * theta)
             sin[i, j + d // 2] = torch.sin(i * theta)
 
-    def get_cos_sin(pos: int):
-        return cos[pos], sin[pos]
+    def get_cos_sin(pos: int, device):
+        return cos[pos].to(device), sin[pos].to(device)
 
     return get_cos_sin
 
