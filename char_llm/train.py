@@ -3,7 +3,6 @@ from dataclasses import dataclass, asdict
 
 import torch
 import wandb
-from torch.optim.lr_scheduler import CosineAnnealingLR
 
 from char_llm.data import load_data
 from char_llm.model_gpt import GPTConfig, GPT
@@ -85,7 +84,8 @@ def build_model(train_args: TrainArgs, model_type: str, device, vocab_size):
             num_hidden_layers=train_args.n_layer,
             num_attention_heads=train_args.n_head,
             hidden_size=train_args.n_embd,
-            intermediate_size=int(2.6875 * train_args.n_embd)
+            intermediate_size=int(2.6875 * train_args.n_embd),
+            dropout=train_args.dropout,
         )
         logger.info(f"llama config {asdict(config)}")
         return CausalLlamaModel(config).to(device)
