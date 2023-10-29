@@ -21,6 +21,7 @@ class LlamaConfig:
     max_context_length: int = 4096
     hidden_act: str = "silu"
     initializer_range: float = 0.02
+    dropout: float = 0.2
 
 
 class Mlp(nn.Module):
@@ -30,13 +31,14 @@ class Mlp(nn.Module):
         self.up_proj = nn.Linear(in_features=config.hidden_size, out_features=config.intermediate_size, bias=False)
         self.down_proj = nn.Linear(in_features=config.intermediate_size, out_features=config.hidden_size, bias=False)
         self.act_fn = get_activation(config.hidden_act)
+        self.dropout = nn.Dropout(config.dropout)
 
     def forward(self, hidden_states: torch.Tensor):
         assert hidden_states.dim() == 3
         activation = self.act_fn(self.gate_proj(hidden_states))
         hidden_states = activation * self.up_proj(hidden_states)
         hidden_states = self.down_proj(hidden_states)
-        return hidden_states
+        return self.dropout(hidden_states)
 
 
 class MultiHeadAttention(nn.Module):
@@ -46,6 +48,7 @@ class MultiHeadAttention(nn.Module):
         self.k_proj = nn.Linear(in_features=config.hidden_size, out_features=config.hidden_size, bias=False)
         self.v_proj = nn.Linear(in_features=config.hidden_size, out_features=config.hidden_size, bias=False)
         self.o_proj = nn.Linear(in_features=config.hidden_size, out_features=config.hidden_size, bias=False)
+        self.resid_dropout = nn.Dropout(config.dropout)
 
         self.cos_sin_factory = precompute_cos_sin(
             config.max_context_length,
@@ -75,9 +78,11 @@ class MultiHeadAttention(nn.Module):
         all_k = all_k.permute(1, 2, 0, 3)
         all_v = all_v.permute(1, 2, 0, 3)
 
-        output = torch.nn.functional.scaled_dot_product_attention(all_q, all_k, all_v, is_causal=True)
+        output = torch.nn.functional.scaled_dot_product_attention(
+            all_q, all_k, all_v, dropout_p=self.config.dropout if self.training else 0,
+            is_causal=True)
         output = output.permute(0, 2, 1, 3).reshape(bs, sl, hs)
-        return self.o_proj(output)
+        return self.resid_dropout(self.o_proj(output))
 
 
 class Block(nn.Module):
@@ -145,11 +150,13 @@ class Model(nn.Module):
         self.word_embedding_table = nn.Embedding(config.vocab_size, config.hidden_size)
         self.layers = nn.ModuleList([Block(config) for _ in range(config.num_hidden_layers)])
         self.rms = RMSNorm(hidden_size=config.hidden_size, eps=config.rms_norm_eps)
+        self.dropout = nn.Dropout(config.dropout)
 
     def forward(self, input_ids: torch.LongTensor):
         # [batch size, seq length]
         assert input_ids.dim() == 2
         hidden_states = self.word_embedding_table(input_ids)
+        hidden_states = self.dropout(hidden_states)
         layers_output = [hidden_states.detach()]
         for layer in self.layers:
             hidden_states = layer(hidden_states)
@@ -245,6 +252,7 @@ def test_modeling():
     config = LlamaConfig(num_hidden_layers=2)
     model = Model(config)
     model.load_weights_from_hf(ref_model_id)
+    model.eval()
 
     input_ids = torch.LongTensor([[42, 2, 23], [5, 6, 9]])
     out1 = ref_model(input_ids, output_hidden_states=True)
