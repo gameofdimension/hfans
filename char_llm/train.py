@@ -101,7 +101,7 @@ def train(data_file: str, device: str, model_type: str, train_args: TrainArgs):
 
     # create a PyTorch optimizer
     optimizer = torch.optim.AdamW(model.parameters(), lr=train_args.learning_rate)
-    scheduler = CosineAnnealingLR(optimizer, T_max=train_args.max_iters)
+    # scheduler = CosineAnnealingLR(optimizer, T_max=train_args.max_iters)
 
     for iter in range(train_args.max_iters):
         # every once in a while evaluate the loss on train and val sets
@@ -109,8 +109,7 @@ def train(data_file: str, device: str, model_type: str, train_args: TrainArgs):
             losses = estimate_loss(
                 model=model, get_batch=get_batch, eval_iters=train_args.eval_iters)
             logger.info(
-                f"step {iter}: lr {scheduler.get_last_lr()}, "
-                f"train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+                f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
             texts = sample(model, device, decode)
             wandb.log(
                 step=iter,
@@ -129,7 +128,7 @@ def train(data_file: str, device: str, model_type: str, train_args: TrainArgs):
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
         optimizer.step()
-        scheduler.step()
+        # scheduler.step()
 
     losses = estimate_loss(
         model=model, get_batch=get_batch, eval_iters=train_args.eval_iters)
