@@ -6,6 +6,7 @@ from loguru import logger
 import torch
 import torch.distributed as dist
 from torch.utils.data import Dataset, DataLoader
+from tqdm import tqdm
 
 from char_llm.model_gpt import GPT, GPTConfig
 from char_llm.util import TrainArgs
@@ -153,7 +154,7 @@ def get_args():
 def train(max_epoch: int, train_dl: DataLoader, model: GPT, lr: float, device):
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
     for i in range(max_epoch):
-        for batch in train_dl:
+        for batch in tqdm(train_dl):
             batch = batch.to(device)
             X = batch[:, :-1].contiguous()
             Y = batch[:, 1:].contiguous()
@@ -172,7 +173,7 @@ def main():
         batch_size=args.batch_size,
         eval_interval=args.eval_interval,
         learning_rate=args.lr,
-        n_embd=4096,
+        n_embd=4096//16,
         n_layer=32,
         n_head=32,
     )
