@@ -173,8 +173,8 @@ def main():
         batch_size=args.batch_size,
         eval_interval=args.eval_interval,
         learning_rate=args.lr,
-        n_embd=4096//16,
-        n_layer=32,
+        n_embd=4096,
+        n_layer=16,
         n_head=32,
     )
 
