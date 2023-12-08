@@ -4,8 +4,6 @@ from typing import Optional
 import torch
 from torch import nn
 from torch.nn import CrossEntropyLoss
-from transformers import AutoModelForCausalLM
-from transformers.activations import get_activation
 
 from char_llm.common import RMSNorm, precompute_cos_sin, apply_rotary
 
@@ -30,6 +28,7 @@ class Mlp(nn.Module):
         self.gate_proj = nn.Linear(in_features=config.hidden_size, out_features=config.intermediate_size, bias=False)
         self.up_proj = nn.Linear(in_features=config.hidden_size, out_features=config.intermediate_size, bias=False)
         self.down_proj = nn.Linear(in_features=config.intermediate_size, out_features=config.hidden_size, bias=False)
+        from transformers.activations import get_activation
         self.act_fn = get_activation(config.hidden_act)
         self.dropout = nn.Dropout(config.dropout)
 
@@ -168,6 +167,7 @@ class Model(nn.Module):
         :return:
         """
         # model_id = 'felixdae/Llama-2-7b-hf'
+        from transformers import AutoModelForCausalLM
         ref_model = AutoModelForCausalLM.from_pretrained(model_id)
 
         state_dict = self.state_dict()
@@ -244,6 +244,7 @@ class CausalLlamaModel(nn.Module):
 
 def test_modeling():
     ref_model_id = "felixdae/Llama-2-7b-hf"
+    from transformers import AutoModelForCausalLM
     ref_model = AutoModelForCausalLM.from_pretrained(ref_model_id)
 
     config = LlamaConfig(num_hidden_layers=2)
