@@ -6,6 +6,7 @@ from loguru import logger
 import torch
 import torch.distributed as dist
 from torch.utils.data import Dataset, DataLoader
+from torch import nn
 from tqdm import tqdm
 
 from char_llm.model_gpt import GPT, GPTConfig
@@ -152,7 +153,14 @@ def get_args():
 
 
 def train(max_epoch: int, train_dl: DataLoader, model: GPT, lr: float, device):
+    local_rank = int(os.environ['LOCAL_RANK'])
+    model = nn.parallel.DistributedDataParallel(
+            model,
+            device_ids=[local_rank],
+            find_unused_parameters=True
+        )
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
+
     for i in range(max_epoch):
         for batch in tqdm(train_dl):
             batch = batch.to(device)
@@ -173,8 +181,8 @@ def main():
         batch_size=args.batch_size,
         eval_interval=args.eval_interval,
         learning_rate=args.lr,
-        n_embd=4096,
-        n_layer=16,
+        n_embd=8192,
+        n_layer=4,
         n_head=32,
     )
 
