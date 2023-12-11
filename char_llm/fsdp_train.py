@@ -59,13 +59,24 @@ def main():
     args = get_args()
     data_file = args.data_file
     device = "cuda"
+    # big model, used to prove fsdp works
+    # train_args = TrainArgs(
+    #     batch_size=args.batch_size,
+    #     eval_interval=args.eval_interval,
+    #     learning_rate=args.lr,
+    #     n_embd=8192,
+    #     n_layer=4,
+    #     n_head=32,
+    # )
+    # small model, to demo fsdp not working
     train_args = TrainArgs(
         batch_size=args.batch_size,
         eval_interval=args.eval_interval,
         learning_rate=args.lr,
-        n_embd=8192,
-        n_layer=4,
+        n_embd=1024,
+        n_layer=48,
         n_head=32,
+        block_size=8192,
     )
 
     init_distributed()
