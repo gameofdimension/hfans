@@ -2,16 +2,14 @@ import argparse
 from dataclasses import asdict
 
 import torch
-import wandb
-
-from char_llm.data import load_data
-from char_llm.model_gpt import GPTConfig, GPT
-from char_llm.model_llama import LlamaConfig, CausalLlamaModel
-from char_llm.model_rwkv import RwkvConfig, CausalRwkvModel
-from char_llm.util import sample, make_wandb_table
-from char_llm.util import TrainArgs, estimate_loss
-
 from loguru import logger
+
+import wandb
+from char_llm.data import load_data
+from char_llm.model_gpt import GPT, GPTConfig
+from char_llm.model_llama import CausalLlamaModel, LlamaConfig
+from char_llm.model_rwkv import CausalRwkvModel, RwkvConfig
+from char_llm.util import TrainArgs, estimate_loss, make_wandb_table, sample
 
 
 def build_model(train_args: TrainArgs, model_type: str, device, vocab_size):
