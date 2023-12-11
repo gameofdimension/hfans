@@ -52,9 +52,8 @@ def main():
         eval_interval=args.eval_interval,
         learning_rate=args.lr,
         n_embd=8192,
-        n_layer=2,
+        n_layer=4,
         n_head=32,
-        block_size=512,
     )
 
     init_distributed()
