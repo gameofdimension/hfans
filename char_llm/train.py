@@ -1,5 +1,5 @@
 import argparse
-from dataclasses import dataclass, asdict
+from dataclasses import asdict
 
 import torch
 import wandb
@@ -13,8 +13,9 @@ from char_llm.util import TrainArgs, estimate_loss
 
 from loguru import logger
 
+
 def build_model(train_args: TrainArgs, model_type: str, device, vocab_size):
-    if model_type == 'gpt':
+    if model_type == "gpt":
         config = GPTConfig(
             block_size=train_args.block_size,
             vocab_size=vocab_size,
@@ -25,7 +26,7 @@ def build_model(train_args: TrainArgs, model_type: str, device, vocab_size):
         )
         logger.info(f"gpt config {asdict(config)}")
         return GPT(config).to(device)
-    if model_type == 'rwkv':
+    if model_type == "rwkv":
         train_args.n_embd = 128
         train_args.n_layer = 2
         train_args.block_size = 64
@@ -39,7 +40,7 @@ def build_model(train_args: TrainArgs, model_type: str, device, vocab_size):
         )
         logger.info(f"rwkv config {asdict(config)}")
         return CausalRwkvModel(config).to(device)
-    if model_type == 'llama':
+    if model_type == "llama":
         config = LlamaConfig(
             max_context_length=train_args.block_size,
             vocab_size=vocab_size,
@@ -56,12 +57,13 @@ def build_model(train_args: TrainArgs, model_type: str, device, vocab_size):
 
 def train(data_file: str, device: str, model_type: str, train_args: TrainArgs):
     get_batch, _, decode, vocab_size = load_data(
-        data_file, device, train_args.block_size, train_args.batch_size)
+        data_file, device, train_args.block_size, train_args.batch_size
+    )
 
     model = build_model(train_args, model_type, device, vocab_size)
     # print the number of parameters in the model
     logger.info(f"training args {train_args}")
-    logger.info(f'{sum(p.numel() for p in model.parameters()) / 1e6} M parameters')
+    logger.info(f"{sum(p.numel() for p in model.parameters()) / 1e6} M parameters")
 
     # create a PyTorch optimizer
     optimizer = torch.optim.AdamW(model.parameters(), lr=train_args.learning_rate)
@@ -71,21 +73,24 @@ def train(data_file: str, device: str, model_type: str, train_args: TrainArgs):
         # every once in a while evaluate the loss on train and val sets
         if iter % train_args.eval_interval == 0 or iter == train_args.max_iters - 1:
             losses = estimate_loss(
-                model=model, get_batch=get_batch, eval_iters=train_args.eval_iters)
+                model=model, get_batch=get_batch, eval_iters=train_args.eval_iters
+            )
             logger.info(
-                f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+                f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}"
+            )
             texts = sample(model, device, decode)
             wandb.log(
                 step=iter,
                 commit=True,
                 data={
-                    "train/loss": losses['train'],
-                    "val/loss": losses['val'],
+                    "train/loss": losses["train"],
+                    "val/loss": losses["val"],
                     "samples": make_wandb_table(texts),
-                })
+                },
+            )
 
         # sample a batch of data
-        xb, yb = get_batch('train')
+        xb, yb = get_batch("train")
 
         # evaluate the loss
         logits, loss = model(xb, yb)
@@ -95,28 +100,34 @@ def train(data_file: str, device: str, model_type: str, train_args: TrainArgs):
         # scheduler.step()
 
     losses = estimate_loss(
-        model=model, get_batch=get_batch, eval_iters=train_args.eval_iters)
-    logger.info(f"step {train_args.max_iters}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+        model=model, get_batch=get_batch, eval_iters=train_args.eval_iters
+    )
+    logger.info(
+        f"step {train_args.max_iters}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}"
+    )
     texts = sample(model, device, decode)
     wandb.log(
         step=train_args.max_iters,
         commit=True,
         data={
-            "train/loss": losses['train'],
-            "val/loss": losses['val'],
+            "train/loss": losses["train"],
+            "val/loss": losses["val"],
             "samples": make_wandb_table(texts),
-        })
+        },
+    )
 
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--eval_interval', type=int, default=50)
-    parser.add_argument('--batch_size', type=int, required=True)
-    parser.add_argument('--max_iters', type=int, default=5000)
-    parser.add_argument('--model_type', type=str, required=True, help='gpt or rwkv or llama')
-    parser.add_argument('--wandb_project', type=str, required=True)
-    parser.add_argument('--lr', type=float, default=3e-4, help='learning rate')
-    parser.add_argument('--data_file', type=str, help='data filename')
+    parser.add_argument("--eval_interval", type=int, default=50)
+    parser.add_argument("--batch_size", type=int, required=True)
+    parser.add_argument("--max_iters", type=int, default=5000)
+    parser.add_argument(
+        "--model_type", type=str, required=True, help="gpt or rwkv or llama"
+    )
+    parser.add_argument("--wandb_project", type=str, required=True)
+    parser.add_argument("--lr", type=float, default=3e-4, help="learning rate")
+    parser.add_argument("--data_file", type=str, help="data filename")
     args = parser.parse_args()
     return args
 
@@ -124,7 +135,7 @@ def get_args():
 def main():
     args = get_args()
     data_file = args.data_file
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     train_args = TrainArgs(
         batch_size=args.batch_size,
         eval_interval=args.eval_interval,
@@ -135,5 +146,5 @@ def main():
     train(data_file, device, args.model_type, train_args)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
