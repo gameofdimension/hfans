@@ -4,9 +4,7 @@ from typing import Any
 from loguru import logger
 import torch
 import torch.distributed as dist
-from torch.utils.data import Dataset, DataLoader
-from torch import nn
-from tqdm import tqdm
+from torch.utils.data import Dataset
 
 from char_llm.model_gpt import GPT, GPTConfig
 from char_llm.util import TrainArgs
