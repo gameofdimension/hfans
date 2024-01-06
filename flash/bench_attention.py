@@ -20,7 +20,8 @@ def cpp(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor):
     with torch.backends.cuda.sdp_kernel(
         enable_flash=False, enable_math=True, enable_mem_efficient=False
     ):
-        return torch.nn.functional.scaled_dot_product_attention(q, k, v, scale=scale)
+        return torch.nn.functional.scaled_dot_product_attention(
+            q, k, v, scale=scale)
 
 
 def flash(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor):
@@ -33,7 +34,8 @@ def flash(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor):
     with torch.backends.cuda.sdp_kernel(
         enable_flash=True, enable_math=False, enable_mem_efficient=False
     ):
-        return torch.nn.functional.scaled_dot_product_attention(q, k, v, scale=scale)
+        return torch.nn.functional.scaled_dot_product_attention(
+            q, k, v, scale=scale)
 
 
 def xformer(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor):
@@ -41,7 +43,8 @@ def xformer(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor):
     with torch.backends.cuda.sdp_kernel(
         enable_flash=False, enable_math=False, enable_mem_efficient=True
     ):
-        return torch.nn.functional.scaled_dot_product_attention(q, k, v, scale=scale)
+        return torch.nn.functional.scaled_dot_product_attention(
+            q, k, v, scale=scale)
 
 
 def main():

@@ -17,7 +17,8 @@ def demo_basic():
     return a
 
 
-def custom_backend(gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor]):
+def custom_backend(
+        gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor]):
     print("custom backend called with FX graph:")
     gm.graph.print_tabular()
     return gm.forward
