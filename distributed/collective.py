@@ -73,6 +73,21 @@ def broadcast_from(rank: int):
     dist.barrier()
 
 
+def send_recv(world_size: int):
+    if dist.get_rank() == 0:
+        tensor = torch.tensor([111.111], device='cuda')
+        for i in range(world_size):
+            if i == 0:
+                continue
+            dist.send(tensor * i, i)
+    else:
+        tensor = torch.tensor([0.0], device='cuda')
+        logger.info(f"before recv {tensor}")
+        dist.recv(tensor, src=0)
+        logger.info(f"before recv {tensor}")
+    dist.barrier()
+
+
 def main():
     world_size, rank, local_rank = init_distributed()
 
@@ -85,6 +100,8 @@ def main():
     scatter(world_size, rank)
 
     broadcast_from(1)
+
+    send_recv(world_size)
 
     cleanup()
 
