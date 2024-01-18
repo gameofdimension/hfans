@@ -20,6 +20,9 @@ class FlashModule(nn.Module):
 
 
 def flash_compile():
+    '''
+    show that torch.compile not work with tri dao flash attention
+    '''
     param = {
         'device': 'cuda',
         'dtype': torch.bfloat16,
@@ -38,11 +41,14 @@ def flash_compile():
 
 
 def apex_group_norm_compile():
+    '''
+    show that torch.compile not work with apex group norm
+    '''
     group = 32
     channels = 512
     h, w = 256, 192
-    model = ApexGroupNorm(group, channels, act='silu',
-                          device='cuda', dtype=torch.bfloat16)
+    model = ApexGroupNorm(group, channels, act='silu').to(
+        device=torch.device('cuda'), dtype=torch.bfloat16)
     model = torch.compile(model=model)
 
     param = {
@@ -58,14 +64,8 @@ def apex_group_norm_compile():
         data = torch.randn(
             4, channels, h, w, **param).to(
                 memory_format=torch.channels_last)  # type: ignore
-        print(data.is_contiguous(memory_format=torch.channels_last))
         out = model(data)
-        # print(out.shape, out.stride())
-        print('xxx', out.is_contiguous(memory_format=torch.channels_last))
         y = out*out
-        print(y.shape, y.stride())
-        # loss = y.mean()
-        # loss.backward()
         y.backward(grad)
 
 
