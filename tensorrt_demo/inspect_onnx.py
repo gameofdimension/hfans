@@ -2,7 +2,7 @@ import onnx
 
 
 def main():
-    model = onnx.load('build/fcn_resnet101_onnx_model.onnx')
+    model = onnx.load('build/resnet50_onnx_model.onnx')
     output = [node.name for node in model.graph.output]
 
     input_all = [node.name for node in model.graph.input]

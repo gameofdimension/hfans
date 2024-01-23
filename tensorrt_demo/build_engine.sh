@@ -1,0 +1,1 @@
+trtexec --onnx=build/resnet50_onnx_model.onnx --saveEngine=build/resnet_engine.trt
