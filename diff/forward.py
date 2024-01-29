@@ -59,6 +59,8 @@ def simulate():
     T = nsteps*dt
     t = np.linspace(0, T, nsteps + 1)
 
+    print("timesteps", len(t), t[:5], t[-5:])
+
     params = {'sigma': sigma, 'x0': x0, 'T': T}
 
     x_traj = forward_SDE_simulation(
@@ -69,11 +71,12 @@ def simulate():
 
 def plot(x_traj, t, params, T):
     # Plot initial distribution (distribution before diffusion)
-    plt.hist(x_traj[0], density=True, bins=100)
-    plt.title("$t = 0$", fontsize=20)
-    plt.xlabel("$x$", fontsize=20)
-    plt.ylabel("probability", fontsize=20)
-    plt.savefig("t0.png")
+    fig, ax = plt.subplots()
+    ax.hist(x_traj[0], density=True, bins=100)
+    ax.set_title("$t = 0$", fontsize=20)
+    ax.set_xlabel("$x$", fontsize=20)
+    ax.set_ylabel("probability", fontsize=20)
+    plt.savefig("output/forward_t_init.png")
 
     # Compute exact transition probability
     x_f_min, x_f_max = np.amin(x_traj[-1]), np.amax(x_traj[-1])
@@ -82,21 +85,23 @@ def plot(x_traj, t, params, T):
     pdf_final = transition_probability_diffusion_exact(x_f_arg, T, params)
 
     # Plot final distribution (distribution after diffusion)
-    plt.hist(x_traj[-1], bins=100, density=True)
-    plt.plot(x_f_arg, pdf_final, color='black', linewidth=5)
-    plt.title("$t = $"+str(T), fontsize=20)
-    plt.xlabel("$x$", fontsize=20)
-    plt.ylabel("probability", fontsize=20)
-    plt.savefig("t2.png")
+    fig, ax = plt.subplots()
+    ax.hist(x_traj[-1], bins=100, density=True)
+    ax.plot(x_f_arg, pdf_final, color='black', linewidth=5)
+    ax.set_title("$t = $"+str(T), fontsize=20)
+    ax.set_xlabel("$x$", fontsize=20)
+    ax.set_ylabel("probability", fontsize=20)
+    plt.savefig("output/forward_t_final.png")
 
     # Plot some trajectories
+    fig, ax = plt.subplots()
     sample_trajectories = [0, 1, 2, 3, 4]
     for s in sample_trajectories:
-        plt.plot(t, x_traj[:, s])
-    plt.title("Sample trajectories", fontsize=20)
-    plt.xlabel("$t$", fontsize=20)
-    plt.ylabel("x", fontsize=20)
-    plt.savefig("trajectories.png")
+        ax.plot(t, x_traj[:, s])
+    ax.set_title("Sample trajectories", fontsize=20)
+    ax.set_xlabel("$t$", fontsize=20)
+    ax.set_ylabel("x", fontsize=20)
+    plt.savefig("output/forward_trajectories.png")
 
 
 if __name__ == "__main__":

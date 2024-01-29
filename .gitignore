@@ -15,3 +15,4 @@ wandb/
 .hypothesis/
 .vscode/
 results/
+output/
