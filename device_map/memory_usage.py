@@ -15,7 +15,7 @@ def make_device_map(model_id):
 
     device_map = infer_auto_device_map(
         model,  # type: ignore
-        # no_split_module_classes=["LlamaDecoderLayer"],
+        no_split_module_classes=["LlamaDecoderLayer"],
         dtype=torch.float16,
         max_memory={0: "10GiB", 1: "25GiB"}
     )
