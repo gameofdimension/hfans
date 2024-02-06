@@ -38,6 +38,11 @@ def infer(model_id, prompt, image_file, device_map):
 
 
 def main():
+    '''
+    两个要点：
+    1. 如何限制每个GPU的内存使用
+    2. 如何使用 device_map 让多个 gpu 协同工作，通过打印 device_map 可以看到应该是采用了 pipeline 的方式
+    '''
     model_id = "llava-hf/llava-1.5-13b-hf"
     prompt = "USER: <image>\nWhat are these?\nASSISTANT:"
     image_file = "http://images.cocodataset.org/val2017/000000039769.jpg"
