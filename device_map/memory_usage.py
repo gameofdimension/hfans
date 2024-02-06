@@ -3,15 +3,15 @@ import requests
 import torch
 from accelerate import infer_auto_device_map, init_empty_weights
 from PIL import Image
-from transformers import AutoProcessor, LlavaForConditionalGeneration
+from transformers import (
+    AutoProcessor, LlavaForConditionalGeneration, AutoConfig)
 
 
 def make_device_map(model_id):
     with init_empty_weights():
-        model = LlavaForConditionalGeneration.from_pretrained(
-            model_id,
-        )
-        print("device", model.device)  # type: ignore
+        config = AutoConfig.from_pretrained(model_id)
+        model = LlavaForConditionalGeneration(config)
+        # print("device", model.device)  # type: ignore
 
     device_map = infer_auto_device_map(
         model,  # type: ignore
