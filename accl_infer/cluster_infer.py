@@ -123,4 +123,6 @@ def main():
 
 
 if __name__ == '__main__':
+    # https://medium.com/@geronimo7/llms-multi-gpu-inference-with-accelerate-5a8333e4c5db
+    # accelerate launch --num_processes=2 cluster_infer.py
     main()
