@@ -25,15 +25,10 @@ def batch_data(noise_scheduler, batch_size, device):
     noise = torch.randn_like(model_input)
     noisy_model_input = noise_scheduler.add_noise(
         model_input, noise, timesteps)
-    prompt_embeds = torch.rand(
-        (batch_size, 77, 2048), device=device)
-    unet_added_conditions = {
-        "time_ids": torch.rand((batch_size, 6), device=device),
-        "text_embeds": torch.rand((batch_size, 1280), device=device),
-    }
+
+    encoder_hidden_states = torch.randn((batch_size, 77, 768), device=device)
     return (
-        noisy_model_input, timesteps, prompt_embeds,
-        unet_added_conditions, noise
+        noisy_model_input, timesteps, encoder_hidden_states, noise
     )
 
 
@@ -42,14 +37,12 @@ def train(unet, optimizer, noise_scheduler, batch_size, device):
     for step in tqdm(range(total_step)):
 
         batch = batch_data(noise_scheduler, batch_size, device)
-        noisy_model_input, timesteps, prompt_embeds, \
-            unet_added_conditions, noise = batch
+        noisy_model_input, timesteps, encoder_hidden_states, noise = batch
 
         model_pred = unet(
             noisy_model_input,
             timesteps,
-            prompt_embeds,
-            added_cond_kwargs=unet_added_conditions,
+            encoder_hidden_states,
             return_dict=False,
         )[0]
 
@@ -64,9 +57,9 @@ def train(unet, optimizer, noise_scheduler, batch_size, device):
 def main():
     lr = 2e-5
     batch_size = int(sys.argv[1])
-    device = 'cuda'
-    model, noise_scheduler = make_model(
-        "stabilityai/stable-diffusion-xl-base-1.0", device)
+    device = sys.argv[2]
+    checkpoint = 'runwayml/stable-diffusion-v1-5'
+    model, noise_scheduler = make_model(checkpoint, device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
     train(model, optimizer, noise_scheduler, batch_size, device)
 
