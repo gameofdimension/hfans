@@ -128,7 +128,6 @@ def train(unet, optimizer, noise_scheduler, batch_size, device, dtype):
         else:
             assert False, f"Unknown dtype: {dtype}"
 
-        print(f"enabled: {enabled}, dtype: {dtype}, {device}")
         if device == 'cuda':
             with torch.cuda.amp.autocast(dtype=dtype, enabled=enabled):
                 model_pred = unet(
