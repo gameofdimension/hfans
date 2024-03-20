@@ -8,6 +8,17 @@ from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 
+def collate_fn(examples):
+    latents = torch.stack([example["latents"]
+                           for example in examples])
+    encoder_hidden_states = torch.stack(
+        [example["encoder_hidden_states"] for example in examples])
+    return {
+        "latents": latents,
+        "encoder_hidden_states": encoder_hidden_states
+    }
+
+
 class RandomDataset(Dataset):
     def __init__(self, size: int):
         self.size = size
@@ -29,12 +40,11 @@ def build_random_dataloader(
     batch_size: int,
     dataset,
 ):
-    sampler = torch.utils.data.distributed.DistributedSampler(  # type: ignore
-        dataset, shuffle=True),
     dataloader = DataLoader(
         dataset=dataset,
         batch_size=batch_size,
-        sampler=sampler,
+        collate_fn=collate_fn,
+        shuffle=True,
         drop_last=True,
         num_workers=4,
         pin_memory=True,
@@ -113,12 +123,11 @@ def train(unet, optimizer, noise_scheduler, batch_size, device):
     dataset = RandomDataset(
         size=1000000,
     )
-    print(len(dataset))
     dataloader = build_random_dataloader(batch_size, dataset)
-    print(len(dataloader))
-    for batch in tqdm(dataloader):
+    for step, batch in tqdm(enumerate(dataloader)):
         latents = batch['latents'].to(device)
         encoder_hidden_states = batch['encoder_hidden_states'].to(device)
+
         timesteps = torch.randint(
             0, noise_scheduler.config.num_train_timesteps,
             (batch_size,), device=device
@@ -157,5 +166,7 @@ def main():
     cleanup()
 
 
+# torchrun --nnodes=1 --nproc_per_node=4 --master_addr=localhost
+# --master_port=30601 --node_rank=0 -m sd_train.distributed15 4 cuda
 if __name__ == "__main__":
     main()
