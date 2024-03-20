@@ -8,17 +8,6 @@ from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 
-def collate_fn(examples):
-    latents = torch.stack([example["latents"]
-                           for example in examples])
-    encoder_hidden_states = torch.stack(
-        [example["encoder_hidden_states"] for example in examples])
-    return {
-        "latents": latents,
-        "encoder_hidden_states": encoder_hidden_states
-    }
-
-
 class RandomDataset(Dataset):
     def __init__(self, size: int):
         self.size = size
@@ -40,14 +29,14 @@ def build_random_dataloader(
     batch_size: int,
     dataset,
 ):
+    sampler = torch.utils.data.distributed.DistributedSampler(  # type: ignore
+        dataset, shuffle=False)
     dataloader = DataLoader(
         dataset=dataset,
         batch_size=batch_size,
-        collate_fn=collate_fn,
-        shuffle=True,
         drop_last=True,
+        sampler=sampler,
         num_workers=4,
-        pin_memory=True,
     )
 
     return dataloader
@@ -102,29 +91,12 @@ def make_model(checkpoint: str, device, local_rank):
     return unet, noise_scheduler
 
 
-def batch_data(noise_scheduler, batch_size, device):
-    model_input = torch.randn(
-        (batch_size, 4, 64, 64), device=device)
-    timesteps = torch.randint(
-        0, noise_scheduler.config.num_train_timesteps,
-        (batch_size,), device=device
-    )
-    noise = torch.randn_like(model_input)
-    noisy_model_input = noise_scheduler.add_noise(
-        model_input, noise, timesteps)
-
-    encoder_hidden_states = torch.randn((batch_size, 77, 768), device=device)
-    return (
-        noisy_model_input, timesteps, encoder_hidden_states, noise
-    )
-
-
 def train(unet, optimizer, noise_scheduler, batch_size, device):
     dataset = RandomDataset(
         size=1000000,
     )
     dataloader = build_random_dataloader(batch_size, dataset)
-    for step, batch in tqdm(enumerate(dataloader)):
+    for batch in tqdm(dataloader):
         latents = batch['latents'].to(device)
         encoder_hidden_states = batch['encoder_hidden_states'].to(device)
 
