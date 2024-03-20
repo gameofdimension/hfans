@@ -104,7 +104,7 @@ def make_model(checkpoint: str, device, local_rank):
     return unet, noise_scheduler
 
 
-def train(unet, optimizer, noise_scheduler, batch_size, device):
+def train(unet, optimizer, noise_scheduler, batch_size, device, dtype):
     dataset = RandomDataset(
         size=1000000,
     )
@@ -121,12 +121,38 @@ def train(unet, optimizer, noise_scheduler, batch_size, device):
         noisy_model_input = noise_scheduler.add_noise(
             latents, noise, timesteps)
 
-        model_pred = unet(
-            noisy_model_input,
-            timesteps,
-            encoder_hidden_states,
-            return_dict=False,
-        )[0]
+        if dtype == torch.bfloat16:
+            enabled = True
+        elif dtype == torch.float32:
+            enabled = False
+        else:
+            assert False, f"Unknown dtype: {dtype}"
+
+        print(f"enabled: {enabled}, dtype: {dtype}, {device}")
+        if device == 'cuda':
+            with torch.cuda.amp.autocast(dtype=dtype, enabled=enabled):
+                model_pred = unet(
+                    noisy_model_input,
+                    timesteps,
+                    encoder_hidden_states,
+                    return_dict=False,
+                )[0]
+        elif device == 'npu':
+            with torch.npu.amp.autocast(dtype=dtype, enabled=enabled):
+                model_pred = unet(
+                    noisy_model_input,
+                    timesteps,
+                    encoder_hidden_states,
+                    return_dict=False,
+                )[0]
+        else:
+            assert dtype == torch.float32
+            model_pred = unet(
+                noisy_model_input,
+                timesteps,
+                encoder_hidden_states,
+                return_dict=False,
+            )[0]
 
         assert noise_scheduler.config.prediction_type == "epsilon"
         loss = torch.nn.functional.mse_loss(
@@ -140,13 +166,17 @@ def main():
     lr = 2e-5
     batch_size = int(sys.argv[1])
     device = sys.argv[2]
+    if sys.argv[3] == 'bf16':
+        dtype = torch.bfloat16
+    else:
+        dtype = torch.float32
     world_size, rank, local_rank = init_distributed(device)
 
     checkpoint = 'runwayml/stable-diffusion-v1-5'
     # checkpoint = '/root/model-repo/llm-stable-diffusion-v1-5'
     model, noise_scheduler = make_model(checkpoint, device, local_rank)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
-    train(model, optimizer, noise_scheduler, batch_size, device)
+    train(model, optimizer, noise_scheduler, batch_size, device, dtype)
 
     cleanup()
 
