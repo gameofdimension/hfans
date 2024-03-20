@@ -1,13 +1,18 @@
+import functools
 import os
 import sys
 
 import torch
+
 try:
     import torch_npu  # type: ignore # noqa
 except ImportError:
     pass
 import torch.distributed as dist
 from diffusers import DDPMScheduler, UNet2DConditionModel  # type: ignore
+from torch.distributed.fsdp import FullyShardedDataParallel
+from torch.distributed.fsdp import MixedPrecision
+from torch.distributed.fsdp.wrap import size_based_auto_wrap_policy
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
@@ -75,7 +80,7 @@ def init_distributed(device):
             init_method=dist_url,
             world_size=world_size,
             rank=rank)
-        torch.npu.set_device(local_rank)
+        torch.npu.set_device(local_rank)  # type: ignore
     elif device == 'cpu':
         dist.init_process_group(
             backend="gloo",
@@ -90,17 +95,29 @@ def init_distributed(device):
     return world_size, rank, local_rank
 
 
-def make_model(checkpoint: str, device, local_rank):
+def make_model(checkpoint: str, device, dp_type, dtype):
+    assert dp_type in ["ddp", "fsdp"]
+    noise_scheduler = DDPMScheduler.from_pretrained(
+        checkpoint, subfolder="scheduler")
     unet: torch.nn.Module = UNet2DConditionModel.from_pretrained(  # type: ignore # noqa
         checkpoint, subfolder='unet').to(device)  # type: ignore
     unet.requires_grad_(True)
     unet.train()
-    unet = torch.nn.parallel.DistributedDataParallel(
-        unet,
-        # device_ids=[local_rank],
-    )
-    noise_scheduler = DDPMScheduler.from_pretrained(
-        checkpoint, subfolder="scheduler")
+    if dp_type == "ddp":
+        unet = torch.nn.parallel.DistributedDataParallel(
+            unet,
+        )
+    else:
+        assert dtype == torch.bfloat16
+        my_auto_wrap_policy = functools.partial(
+            size_based_auto_wrap_policy, min_num_params=20000
+        )
+        unet = FullyShardedDataParallel(
+            unet,  # type: ignore
+            auto_wrap_policy=my_auto_wrap_policy,
+            mixed_precision=MixedPrecision(
+                param_dtype=dtype, cast_forward_inputs=True),
+        )
     return unet, noise_scheduler
 
 
@@ -137,7 +154,7 @@ def train(unet, optimizer, noise_scheduler, batch_size, device, dtype):
                     return_dict=False,
                 )[0]
         elif device == 'npu':
-            with torch.npu.amp.autocast(dtype=dtype, enabled=enabled):
+            with torch.npu.amp.autocast(dtype=dtype, enabled=enabled):  # type: ignore # noqa
                 model_pred = unet(
                     noisy_model_input,
                     timesteps,
@@ -167,13 +184,17 @@ def main():
     device = sys.argv[2]
     if sys.argv[3] == 'bf16':
         dtype = torch.bfloat16
-    else:
+    elif sys.argv[3] == 'fp32':
         dtype = torch.float32
+    else:
+        assert False, f"Unknown dtype: {sys.argv[3]}"
     world_size, rank, local_rank = init_distributed(device)
 
+    # dp_type = "ddp"
+    dp_type = "fsdp"
     checkpoint = 'runwayml/stable-diffusion-v1-5'
     # checkpoint = '/root/model-repo/llm-stable-diffusion-v1-5'
-    model, noise_scheduler = make_model(checkpoint, device, local_rank)
+    model, noise_scheduler = make_model(checkpoint, device, dp_type, dtype)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
     train(model, optimizer, noise_scheduler, batch_size, device, dtype)
 
@@ -183,8 +204,10 @@ def main():
 if __name__ == "__main__":
     """
     cuda:
-        torchrun --nnodes=1 --nproc_per_node=4 --master_addr=localhost --master_port=30601 --node_rank=0 -m sd_train.distributed15 4 cuda
+        torchrun --nnodes=1 --nproc_per_node=4 --master_addr=localhost
+        --master_port=30601 --node_rank=0 -m sd_train.distributed15 4 cuda
     npu:
-        torchrun --nnodes=1 --nproc_per_node=8 --master_addr=localhost --master_port=30601 --node_rank=0 dist.py 4 npu
+        torchrun --nnodes=1 --nproc_per_node=8 --master_addr=localhost
+        --master_port=30601 --node_rank=0 dist.py 4 npu
     """
     main()
