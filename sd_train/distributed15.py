@@ -2,6 +2,10 @@ import os
 import sys
 
 import torch
+try:
+    import torch_npu
+except ImportError:
+    pass
 import torch.distributed as dist
 from diffusers import DDPMScheduler, UNet2DConditionModel  # type: ignore
 from torch.utils.data import DataLoader, Dataset
@@ -63,16 +67,17 @@ def init_distributed(device):
             init_method=dist_url,
             world_size=world_size,
             rank=rank)
+        # this will make all .cuda() calls work properly
+        torch.cuda.set_device(local_rank)
     elif device == 'npu':
         dist.init_process_group(
             backend="hccl",
             init_method=dist_url,
             world_size=world_size,
             rank=rank)
+        torch.npu.set_device(local_rank)
     else:
         assert False, f"Unknown device: {device}"
-    # this will make all .cuda() calls work properly
-    torch.cuda.set_device(local_rank)
     # synchronizes all the threads to reach this point before moving on
     dist.barrier()
     return world_size, rank, local_rank
