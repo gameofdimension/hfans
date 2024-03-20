@@ -59,6 +59,7 @@ def main():
     batch_size = int(sys.argv[1])
     device = sys.argv[2]
     checkpoint = 'runwayml/stable-diffusion-v1-5'
+    # checkpoint = '/root/model-repo/llm-stable-diffusion-v1-5'
     model, noise_scheduler = make_model(checkpoint, device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
     train(model, optimizer, noise_scheduler, batch_size, device)
