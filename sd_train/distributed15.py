@@ -188,17 +188,22 @@ def main():
         dtype = torch.float32
     else:
         assert False, f"Unknown dtype: {sys.argv[3]}"
-    world_size, rank, local_rank = init_distributed(device)
+    dp_type = None
+    if len(sys.argv) > 4:
+        dp_type = sys.argv[4]
+        assert dp_type in ["ddp", "fsdp"]
 
-    # dp_type = "ddp"
-    dp_type = "fsdp"
+    if dp_type is not None:
+        init_distributed(device)
+
     checkpoint = 'runwayml/stable-diffusion-v1-5'
     # checkpoint = '/root/model-repo/llm-stable-diffusion-v1-5'
     model, noise_scheduler = make_model(checkpoint, device, dp_type, dtype)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
     train(model, optimizer, noise_scheduler, batch_size, device, dtype)
 
-    cleanup()
+    if dp_type is not None:
+        cleanup()
 
 
 if __name__ == "__main__":
