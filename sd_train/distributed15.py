@@ -76,6 +76,13 @@ def init_distributed(device):
             world_size=world_size,
             rank=rank)
         torch.npu.set_device(local_rank)
+    elif device == 'cpu':
+        dist.init_process_group(
+            backend="gloo",
+            init_method=dist_url,
+            world_size=world_size,
+            rank=rank)
+        torch.cpu.set_device(local_rank)
     else:
         assert False, f"Unknown device: {device}"
     # synchronizes all the threads to reach this point before moving on
@@ -89,7 +96,8 @@ def make_model(checkpoint: str, device, local_rank):
     unet.requires_grad_(True)
     unet.train()
     unet = torch.nn.parallel.DistributedDataParallel(
-        unet, device_ids=[local_rank],
+        unet,
+        # device_ids=[local_rank],
     )
     noise_scheduler = DDPMScheduler.from_pretrained(
         checkpoint, subfolder="scheduler")
