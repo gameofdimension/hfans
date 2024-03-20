@@ -3,7 +3,7 @@ import sys
 
 import torch
 try:
-    import torch_npu
+    import torch_npu  # type: ignore # noqa
 except ImportError:
     pass
 import torch.distributed as dist
@@ -143,7 +143,11 @@ def main():
     cleanup()
 
 
-# torchrun --nnodes=1 --nproc_per_node=4 --master_addr=localhost
-# --master_port=30601 --node_rank=0 -m sd_train.distributed15 4 cuda
 if __name__ == "__main__":
+    """
+    cuda:
+        torchrun --nnodes=1 --nproc_per_node=4 --master_addr=localhost --master_port=30601 --node_rank=0 -m sd_train.distributed15 4 cuda
+    npu:
+        torchrun --nnodes=1 --nproc_per_node=8 --master_addr=localhost --master_port=30601 --node_rank=0 dist.py 4 npu
+    """
     main()
