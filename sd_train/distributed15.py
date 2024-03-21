@@ -96,7 +96,6 @@ def init_distributed(device):
 
 
 def make_model(checkpoint: str, device, dp_type, dtype):
-    assert dp_type in ["ddp", "fsdp"]
     noise_scheduler = DDPMScheduler.from_pretrained(
         checkpoint, subfolder="scheduler")
     unet: torch.nn.Module = UNet2DConditionModel.from_pretrained(  # type: ignore # noqa
@@ -107,7 +106,7 @@ def make_model(checkpoint: str, device, dp_type, dtype):
         unet = torch.nn.parallel.DistributedDataParallel(
             unet,
         )
-    else:
+    elif dp_type == "fsdp":
         assert dtype == torch.bfloat16
         my_auto_wrap_policy = functools.partial(
             size_based_auto_wrap_policy, min_num_params=20000
