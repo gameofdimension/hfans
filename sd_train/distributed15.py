@@ -37,9 +37,13 @@ class RandomDataset(Dataset):
 def build_random_dataloader(
     batch_size: int,
     dataset,
+    distributed,
 ):
-    sampler = torch.utils.data.distributed.DistributedSampler(  # type: ignore
-        dataset, shuffle=False)
+    if distributed:
+        sampler = torch.utils.data.distributed.DistributedSampler(  # type: ignore # noqa
+            dataset, shuffle=False)
+    else:
+        sampler = torch.utils.data.SequentialSampler(dataset)  # type: ignore
     dataloader = DataLoader(
         dataset=dataset,
         batch_size=batch_size,
@@ -120,11 +124,9 @@ def make_model(checkpoint: str, device, dp_type, dtype):
     return unet, noise_scheduler
 
 
-def train(unet, optimizer, noise_scheduler, batch_size, device, dtype):
-    dataset = RandomDataset(
-        size=1000000,
-    )
-    dataloader = build_random_dataloader(batch_size, dataset)
+def train(
+        unet, optimizer, noise_scheduler,
+        batch_size, device, dtype, dataloader):
     for batch in tqdm(dataloader):
         latents = batch['latents'].to(device)
         encoder_hidden_states = batch['encoder_hidden_states'].to(device)
@@ -192,16 +194,21 @@ def main():
         dp_type = sys.argv[4]
         assert dp_type in ["ddp", "fsdp"]
 
-    if dp_type is not None:
+    distributed = dp_type is not None
+    if distributed:
         init_distributed(device)
 
     checkpoint = 'runwayml/stable-diffusion-v1-5'
     # checkpoint = '/root/model-repo/llm-stable-diffusion-v1-5'
     model, noise_scheduler = make_model(checkpoint, device, dp_type, dtype)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
-    train(model, optimizer, noise_scheduler, batch_size, device, dtype)
+    dataset = RandomDataset(size=1000000)
+    dataloader = build_random_dataloader(batch_size, dataset, distributed)
+    train(
+        model, optimizer, noise_scheduler,
+        batch_size, device, dtype, dataloader)
 
-    if dp_type is not None:
+    if distributed:
         cleanup()
 
 
