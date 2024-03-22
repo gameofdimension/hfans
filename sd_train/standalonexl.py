@@ -25,11 +25,11 @@ def batch_data(noise_scheduler, batch_size, device):
     noise = torch.randn_like(model_input)
     noisy_model_input = noise_scheduler.add_noise(
         model_input, noise, timesteps)
-    prompt_embeds = torch.rand(
+    prompt_embeds = torch.randn(
         (batch_size, 77, 2048), device=device)
     unet_added_conditions = {
-        "time_ids": torch.rand((batch_size, 6), device=device),
-        "text_embeds": torch.rand((batch_size, 1280), device=device),
+        "time_ids": torch.randn((batch_size, 6), device=device),
+        "text_embeds": torch.randn((batch_size, 1280), device=device),
     }
     return (
         noisy_model_input, timesteps, prompt_embeds,
