@@ -1,23 +1,6 @@
 import torch
-from transformers import (
-    CLIPTextModel, CLIPTextModelWithProjection, CLIPTokenizer
-)
-
-
-class SDXLModel(torch.nn.Module):
-    def __init__(
-            self, unet: torch.nn.Module,
-            text_encoder_one: torch.nn.Module,
-            text_encoder_two: torch.nn.Module):
-        super(SDXLModel, self).__init__()
-        self.unet = unet
-        self.text_encoder_one = text_encoder_one
-        self.text_encoder_two = text_encoder_two
-
-    def forward(
-            self, timesteps: torch.Tensor, input_ids1: torch.Tensor,
-            input_ids2: torch.Tensor, noisy_latents: torch.Tensor):
-        pass
+from transformers import (CLIPTextModel, CLIPTextModelWithProjection,
+                          CLIPTokenizer)
 
 
 def pool_workaround(
@@ -52,7 +35,6 @@ def get_hidden_states_sdxl(
     tokenizer2: CLIPTokenizer,
     text_encoder1: CLIPTextModel,
     text_encoder2: CLIPTextModelWithProjection,
-    dtype,
 ):
     # input_ids: b,n,77 -> b*n, 77
     b_size = input_ids1.size()[0]
@@ -84,7 +66,50 @@ def get_hidden_states_sdxl(
     hidden_states2 = hidden_states2.reshape(
         (b_size, -1, hidden_states2.shape[-1]))
 
-    hidden_states1 = hidden_states1.to(dtype)
-    hidden_states2 = hidden_states2.to(dtype)
-
     return hidden_states1, hidden_states2, pool2
+
+
+class SDXLModel(torch.nn.Module):
+    def __init__(
+            self, unet: torch.nn.Module,
+            tokenizer1,
+            tokenizer2,
+            text_encoder1: torch.nn.Module,
+            text_encoder2: torch.nn.Module):
+        super(SDXLModel, self).__init__()
+        self.unet = unet
+        self.text_encoder1 = text_encoder1
+        self.text_encoder2 = text_encoder2
+        self.tokenizer1 = tokenizer1
+        self.tokenizer2 = tokenizer2
+
+    def forward(
+            self, timesteps: torch.Tensor, input_ids1: torch.Tensor,
+            input_ids2: torch.Tensor, noisy_latents: torch.Tensor,
+            time_ids: torch.Tensor):
+        hidden_states1, hidden_states2, pool2 = get_hidden_states_sdxl(
+            input_ids1,
+            input_ids2,
+            self.tokenizer1,
+            self.tokenizer2,
+            self.text_encoder1,  # type: ignore
+            self.text_encoder2,  # type: ignore
+        )
+
+        unet_added_conditions = {
+            "time_ids": time_ids,
+            "text_embeds": pool2,
+        }
+
+        prompt_embeds = torch.cat(
+            [hidden_states1, hidden_states2], dim=2)
+
+        model_pred = self.unet(
+            noisy_latents,
+            timesteps,
+            prompt_embeds,
+            added_cond_kwargs=unet_added_conditions,
+            return_dict=False,
+        )[0]
+
+        return model_pred

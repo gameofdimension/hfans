@@ -1,9 +1,9 @@
 import sys
 
 import torch
-from diffusers import DDPMScheduler, UNet2DConditionModel  # type: ignore
+from diffusers import (DDPMScheduler, UNet2DConditionModel)  # type: ignore
 from tqdm import tqdm
-from transformers import CLIPTextModel, CLIPTextModelWithProjection
+from transformers import CLIPTextModel, CLIPTextModelWithProjection, AutoTokenizer  # type: ignore # noqa
 
 from sd_train.common import SDXLModel
 
@@ -13,19 +13,30 @@ def make_model(checkpoint: str, device):
         checkpoint, subfolder='unet').to(device)  # type: ignore
     unet.requires_grad_(True)
     unet.train()
-    text_encoder_one: torch.nn.Module = CLIPTextModel.from_pretrained(  # type: ignore # noqa
+    text_encoder1: torch.nn.Module = CLIPTextModel.from_pretrained(  # type: ignore # noqa
         checkpoint, subfolder="text_encoder"
-    )
-    text_encoder_one.requires_grad_(True)
-    text_encoder_one.train()
-    text_encoder_two: torch.nn.Module = CLIPTextModelWithProjection.from_pretrained(  # type: ignore # noqa
+    ).to(device)  # type: ignore
+    text_encoder1.requires_grad_(True)
+    text_encoder1.train()
+    text_encoder2: torch.nn.Module = CLIPTextModelWithProjection.from_pretrained(  # type: ignore # noqa
         checkpoint, subfolder="text_encoder_2"
-    )
-    text_encoder_two.requires_grad_(True)
-    text_encoder_two.train()
+    ).to(device)  # type: ignore
+    text_encoder2.requires_grad_(True)
+    text_encoder2.train()
     noise_scheduler = DDPMScheduler.from_pretrained(
         checkpoint, subfolder="scheduler")
-    sdxl_model = SDXLModel(unet, text_encoder_one, text_encoder_two)
+
+    tokenizer1 = AutoTokenizer.from_pretrained(
+        checkpoint,
+        subfolder="tokenizer",
+    )
+    tokenizer2 = AutoTokenizer.from_pretrained(
+        checkpoint,
+        subfolder="tokenizer_2",
+    )
+    sdxl_model = SDXLModel(
+        unet, tokenizer1, tokenizer2,
+        text_encoder1, text_encoder2)
     return sdxl_model, noise_scheduler
 
 
@@ -39,15 +50,16 @@ def batch_data(noise_scheduler, batch_size, device):
     noise = torch.randn_like(model_input)
     noisy_model_input = noise_scheduler.add_noise(
         model_input, noise, timesteps)
-    # prompt_embeds = torch.randn(
-    #     (batch_size, 77, 2048), device=device)
-    unet_added_conditions = {
-        "time_ids": torch.randn((batch_size, 6), device=device),
-        # "text_embeds": torch.randn((batch_size, 1280), device=device),
-    }
+    input_ids1 = torch.randint(0, 10000, (batch_size, 77), device=device)
+    input_ids2 = torch.randint(0, 10000, (batch_size, 77), device=device)
+    time_ids = torch.randn((batch_size, 6), device=device)
     return (
-        noisy_model_input, timesteps, prompt_embeds,
-        unet_added_conditions, noise
+        noisy_model_input,
+        timesteps,
+        input_ids1,
+        input_ids2,
+        time_ids,
+        noise
     )
 
 
@@ -56,16 +68,11 @@ def train(model: SDXLModel, optimizer, noise_scheduler, batch_size, device):
     for step in tqdm(range(total_step)):
 
         batch = batch_data(noise_scheduler, batch_size, device)
-        noisy_model_input, timesteps, prompt_embeds, \
-            unet_added_conditions, noise = batch
+        noisy_model_input, timesteps, input_ids1, \
+            input_ids2, time_ids, noise = batch
 
-        # model_pred = unet(
-        #     noisy_model_input,
-        #     timesteps,
-        #     prompt_embeds,
-        #     added_cond_kwargs=unet_added_conditions,
-        #     return_dict=False,
-        # )[0]
+        model_pred = model(
+            timesteps, input_ids1, input_ids2, noisy_model_input, time_ids)
 
         assert noise_scheduler.config.prediction_type == "epsilon"
         loss = torch.nn.functional.mse_loss(
