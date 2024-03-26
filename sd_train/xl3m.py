@@ -5,21 +5,7 @@ from diffusers import DDPMScheduler, UNet2DConditionModel  # type: ignore
 from tqdm import tqdm
 from transformers import CLIPTextModel, CLIPTextModelWithProjection
 
-
-class SDXLModel(torch.nn.Module):
-    def __init__(
-            self, unet: torch.nn.Module,
-            text_encoder_one: torch.nn.Module,
-            text_encoder_two: torch.nn.Module):
-        super(SDXLModel, self).__init__()
-        self.unet = unet
-        self.text_encoder_one = text_encoder_one
-        self.text_encoder_two = text_encoder_two
-
-    def forward(
-            self, timesteps: torch.Tensor, input_ids1: torch.Tensor,
-            input_ids2: torch.Tensor, noisy_latents: torch.Tensor):
-        pass
+from sd_train.common import SDXLModel
 
 
 def make_model(checkpoint: str, device):
