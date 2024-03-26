@@ -35,9 +35,8 @@ def make_model(checkpoint: str, device):
         subfolder="tokenizer_2",
     )
     sdxl_model = SDXLModel(
-        unet, tokenizer1, tokenizer2,
-        text_encoder1, text_encoder2)
-    return sdxl_model, noise_scheduler
+        unet, text_encoder1, text_encoder2)
+    return sdxl_model, noise_scheduler, tokenizer1, tokenizer2
 
 
 def batch_data(noise_scheduler, batch_size, device):
@@ -63,7 +62,9 @@ def batch_data(noise_scheduler, batch_size, device):
     )
 
 
-def train(model: SDXLModel, optimizer, noise_scheduler, batch_size, device):
+def train(
+        model: SDXLModel, optimizer, noise_scheduler,
+        tokenizer1, tokenizer2, batch_size, device):
     total_step = 1000000
     for step in tqdm(range(total_step)):
 
@@ -72,7 +73,9 @@ def train(model: SDXLModel, optimizer, noise_scheduler, batch_size, device):
             input_ids2, time_ids, noise = batch
 
         model_pred = model(
-            timesteps, input_ids1, input_ids2, noisy_model_input, time_ids)
+            timesteps, input_ids1, input_ids2, noisy_model_input, time_ids,
+            tokenizer1.model_max_length, tokenizer2.model_max_length,
+            tokenizer2.eos_token_id)
 
         assert noise_scheduler.config.prediction_type == "epsilon"
         loss = torch.nn.functional.mse_loss(
@@ -88,9 +91,11 @@ def main():
     device = sys.argv[2]
     checkpoint = 'stabilityai/stable-diffusion-xl-base-1.0'
     # checkpoint = '/root/model-repo/llm-stable-diffusion-xl-base-1.0'
-    model, noise_scheduler = make_model(checkpoint, device)
+    model, noise_scheduler, tokenizer1, tokenizer2 = make_model(
+        checkpoint, device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
-    train(model, optimizer, noise_scheduler, batch_size, device)
+    train(model, optimizer, noise_scheduler, tokenizer1, tokenizer2,
+          batch_size, device)
 
 
 if __name__ == "__main__":
