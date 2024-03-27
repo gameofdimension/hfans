@@ -129,15 +129,10 @@ def make_model(checkpoint: str, device, dp_type, dtype):
         subfolder="tokenizer_2",
     )
 
-    print(count_params(unet), unet.training)
-    print(count_params(text_encoder1), text_encoder1.training)
-    print(count_params(text_encoder2), text_encoder2.training)
-
     sdxl_model = SDXLModel(
         unet,  text_encoder1, text_encoder2).to(device)
     sdxl_model = sdxl_model.requires_grad_(True)
     sdxl_model.train()
-    print(count_params(sdxl_model), sdxl_model.training)
 
     if dp_type == "ddp":
         sdxl_model = torch.nn.parallel.DistributedDataParallel(
@@ -167,6 +162,7 @@ def train(
     model_max_length2 = tokenizer2.model_max_length
     eos_token_id2 = tokenizer2.eos_token_id
     for batch in tqdm(dataloader):
+        # torch.cuda.memory._record_memory_history()
         latents = batch['latents'].to(device)
         input_ids1 = batch['input_ids1'].to(device)
         input_ids2 = batch['input_ids2'].to(device)
@@ -215,6 +211,7 @@ def train(
         loss.backward()
         optimizer.step()
         optimizer.zero_grad()
+        # torch.cuda.memory._dump_snapshot("oom2.pickle")
 
 
 def main():
@@ -240,6 +237,8 @@ def main():
     # checkpoint = '/root/model-repo/llm-stable-diffusion-xl-base-1.0'
     model, noise_scheduler, tokenizer1, tokenizer2 = make_model(
         checkpoint, device, dp_type, dtype)
+    # optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
+    # will oom unless foreach=False
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, foreach=False)
     dataset = RandomDataset(size=1000000)
     dataloader = build_random_dataloader(batch_size, dataset, distributed)
