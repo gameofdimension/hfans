@@ -103,21 +103,20 @@ def init_distributed(device):
     return world_size, rank, local_rank
 
 
+def count_params(m):
+    return sum([p.numel() for p in m.parameters()]), \
+        sum([p.numel() for p in m.parameters() if p.requires_grad])
+
+
 def make_model(checkpoint: str, device, dp_type, dtype):
     unet: torch.nn.Module = UNet2DConditionModel.from_pretrained(  # type: ignore # noqa
         checkpoint, subfolder='unet')  # .to(device)  # type: ignore
-    # unet.requires_grad_(True)
-    # unet.train()
     text_encoder1: torch.nn.Module = CLIPTextModel.from_pretrained(  # type: ignore # noqa
         checkpoint, subfolder="text_encoder"
     )  # .to(device)  # type: ignore
-    # text_encoder1.requires_grad_(True)
-    # text_encoder1.train()
     text_encoder2: torch.nn.Module = CLIPTextModelWithProjection.from_pretrained(  # type: ignore # noqa
         checkpoint, subfolder="text_encoder_2"
     )  # .to(device)  # type: ignore
-    # text_encoder2.requires_grad_(True)
-    # text_encoder2.train()
     noise_scheduler = DDPMScheduler.from_pretrained(
         checkpoint, subfolder="scheduler")
 
@@ -130,10 +129,15 @@ def make_model(checkpoint: str, device, dp_type, dtype):
         subfolder="tokenizer_2",
     )
 
+    print(count_params(unet), unet.training)
+    print(count_params(text_encoder1), text_encoder1.training)
+    print(count_params(text_encoder2), text_encoder2.training)
+
     sdxl_model = SDXLModel(
         unet,  text_encoder1, text_encoder2).to(device)
     sdxl_model = sdxl_model.requires_grad_(True)
     sdxl_model.train()
+    print(count_params(sdxl_model), sdxl_model.training)
 
     if dp_type == "ddp":
         sdxl_model = torch.nn.parallel.DistributedDataParallel(
