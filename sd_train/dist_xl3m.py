@@ -30,13 +30,10 @@ class RandomDataset(Dataset):
     def __getitem__(self, idx):
         model_input = torch.randn(
             (4, 64, 64))
-        # prompt_embeds = torch.randn((77, 2048))
         return {
             "latents": model_input,
-            # "prompt_embeds": prompt_embeds,
             "input_ids1": torch.randint(0, 10000, (77,)),
             "time_ids": torch.randn((6,)),
-            # "text_embeds": torch.randn((1280,)),
             "input_ids2": torch.randint(0, 10000, (77,)),
         }
 
