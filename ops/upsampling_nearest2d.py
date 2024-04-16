@@ -14,7 +14,7 @@ def cmp_with_cpu():
     n, c, h, w = 10, 3, 224, 224
     x = torch.randn(n, c, h, w)
     y = torch.nn.functional.interpolate(x, scale_factor=2, mode='nearest')
-    my = unsampling_nearest2d(x, scale_factor=2)
+    my = upsampling_nearest2d(x, scale_factor=2)
     print(y.shape, my.shape)
     print((y - my).abs().max().item())
 
