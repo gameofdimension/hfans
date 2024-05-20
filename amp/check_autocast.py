@@ -18,4 +18,3 @@ def check_autocast():
 
 if __name__ == "__main__":
     check_autocast()
-
