@@ -8,6 +8,9 @@ class MyPool(nn.Module):
         self.mod = nn.AvgPool2d(kernel_size=2)
 
     def forward(self, x):
+        """
+        不支持 BF16 情况下（cann 7.0/8.0）的一个绕过方案，强转 FP32
+        """
         return self.mod(x.float())
 
 
