@@ -2,6 +2,15 @@ import torch
 from torch import nn
 
 
+class MyPool(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.mod = nn.AvgPool2d(kernel_size=2)
+
+    def forward(self, x):
+        return self.mod(x.float())
+
+
 class Model(nn.Module):
     def __init__(self) -> None:
         super().__init__()
@@ -14,6 +23,7 @@ class Model(nn.Module):
             nn.SiLU(),
             nn.Dropout(0.1),
             nn.Conv2d(256, 256, 3, padding=1),
+            MyPool(),
         ])
 
     def forward(self, x):
