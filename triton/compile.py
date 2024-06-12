@@ -2,6 +2,7 @@ import torch
 import triton
 from triton import language as tl
 
+
 def demo():
     @triton.autotune(
         configs=[
@@ -33,7 +34,7 @@ def demo():
     def add_fn(x, y):
         output = torch.zeros_like(x)
         n_elements = output.numel()
-        grid = lambda meta: (triton.cdiv(n_elements, meta["BLOCK_SIZE"]),)
+        def grid(meta): return (triton.cdiv(n_elements, meta["BLOCK_SIZE"]),)
         add_kernel_autotuned[grid](x, y, output, n_elements)
         return output
 
@@ -42,7 +43,7 @@ def demo():
     out = add_fn(x, y)
     print(f"Vector addition of\nX:\t{x}\nY:\t{y}\nis equal to\n{out}")
 
+
 if __name__ == '__main__':
     # https://pytorch.org/tutorials/recipes/torch_compile_user_defined_triton_kernel_tutorial.html
     demo()
-

@@ -17,3 +17,5 @@ wandb/
 results/
 output/
 torch_compile_debug/
+depyf_debug_dir/
+benchmark_result/
