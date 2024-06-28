@@ -5,26 +5,25 @@ from torch import nn
 class Model(nn.Module):
     def __init__(self) -> None:
         super().__init__()
-        self.norm1 = nn.GroupNorm(32, 128)
-        self.act1 = nn.SiLU()
-        self.conv1 = nn.Conv2d(128, 256, 3, padding=1)
-        self.pool = nn.AvgPool2d(kernel_size=2)
+        self.norm1 = nn.LayerNorm(128)
+        self.act1 = nn.Sigmoid()
+        self.mm1 = nn.Linear(128, 256)
 
-        self.norm2 = nn.GroupNorm(32, 256)
-        self.act2 = nn.SiLU()
+        self.norm2 = nn.LayerNorm(256)
+        self.act2 = nn.ReLU()
         self.drop = nn.Dropout(0.1)
-        self.conv2 = nn.Conv2d(256, 256, 3, padding=1)
+        self.mm2 = nn.Linear(256, 256)
 
     def forward(self, x):
         x = self.norm1(x)
         x = self.act1(x)
-        x = self.conv1(x)
-        x = self.pool(x)
+        x = self.mm1(x)
+        x = 42*x
         print("will trigger graph break, x.shape:", x.shape)
         x = self.norm2(x)
         x = self.act2(x)
         x = self.drop(x)
-        x = self.conv2(x)
+        x = self.mm2(x)
         return x
 
 
@@ -38,7 +37,7 @@ def main():
 
     step = 0
     while True:
-        data = torch.randn(64, 128, 64, 64, device=device)
+        data = torch.randn(64, 128, device=device)
         with torch.cuda.amp.autocast(dtype=torch.bfloat16, enabled=enabled):  # type: ignore # noqa
             out = model(data)
             print("return type", type(out))
